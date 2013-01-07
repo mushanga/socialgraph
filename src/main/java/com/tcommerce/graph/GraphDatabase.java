@@ -3,6 +3,7 @@ package com.tcommerce.graph;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.log4j.Logger;
 import org.neo4j.graphalgo.GraphAlgoFactory;
 import org.neo4j.graphalgo.PathFinder;
 import org.neo4j.graphdb.Direction;
@@ -25,6 +26,8 @@ import com.debatree.task.TweetTreeNode;
 import com.debatree.task.UserTreeNode;
 
 public class GraphDatabase {
+
+	private static Logger logger = Logger.getLogger(GraphDatabase.class);
 	//Node types
 	public static final String USER_ID = "user_id";
 	public static final String TWEET_ID = "tweet_id";
@@ -40,8 +43,13 @@ public class GraphDatabase {
 	private static GraphDatabase instance = new GraphDatabase();
 
 	private GraphDatabase() {
-		graphDatabase = (EmbeddedGraphDatabase) new GraphDatabaseFactory().newEmbeddedDatabase(PropsConfigMgrImpl.getInstance().getGraphDbPAth());
-		registerShutdownHook(graphDatabase);
+		try{
+
+			graphDatabase = (EmbeddedGraphDatabase) new GraphDatabaseFactory().newEmbeddedDatabase(PropsConfigMgrImpl.getInstance().getGraphDbPAth());
+			registerShutdownHook(graphDatabase);
+		}catch(Exception ex){
+			logger.error(ex);
+		}
 	}
 
 	public static GraphDatabase getInstance(){
