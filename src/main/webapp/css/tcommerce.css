@@ -1,0 +1,129 @@
+body {
+	font-family: "helvetica neue", arial, sans-serif;
+}
+
+#header {
+	height: 50px;
+	text-align: center;
+}
+
+.bio{
+font: italic 13px/18px Georgia,"Times New Roman",serif;
+color: #534F4F;
+word-wrap: break-word;
+margin: 0;
+}
+
+.userBanner {
+	margin: 0px auto;
+	background-color: #FFF;
+	box-shadow: 0 1px 3px rgba(34, 25, 25, 0.4);
+}
+
+.userBanner h1 {
+	color: #534F4F;
+	margin: 15px 0 10px 0;
+	font-size: 30px;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.productWindow {
+	float: left;
+	width: 250px;
+	margin-bottom: 20px;
+	background-color: #FFF;
+	box-shadow: 0 1px 3px rgba(34, 25, 25, 0.4);
+	font-size: 11px;
+}
+
+.productCard {
+	margin: 20px;
+}
+
+.aloneProductCard {
+	margin: 20px;
+}
+
+.aloneProductWindow {
+	width: 600px;
+	margin-bottom: 20px;
+	background-color: #FFF;
+	box-shadow: 0 1px 3px rgba(34, 25, 25, 0.4);
+	font-size: 11px;
+	margin: 0px auto;
+	padding-bottom: 5px;
+}
+
+.productImg {
+	text-align: center;
+}
+
+.productDetail {
+	text-align: left;
+}
+
+.cardUser {
+	padding: 5px 20px;
+	background-color: #F2F0F0;
+}
+
+.cardUser img {
+	height: 30px;
+	width: 30px;
+}
+
+span.name {
+	color: #8C7E7E;
+	font-weight: bold;
+}
+
+span.comment {
+	color: #8C7E7E;
+	font-size: x-small;
+}
+
+.clear:after {
+	clear: both;
+	content: ".";
+	display: block;
+	height: 0;
+	visibility: hidden;
+}
+
+.navbar .nav>li>a.noPad {
+	padding: 5px 15px;
+}
+
+.navbar-search .search-query {
+	border-radius: 15px 0 0 15px;
+	padding: 4px 14px;
+	border-right-style: none;
+}
+
+.input-append .add-on:last-child {
+	border-radius: 0 15px 15px 0;
+	-moz-transition: border 0.2s linear 0s, box-shadow 0.2s linear 0s;
+	background-color: #FFFFFF;
+	border: 1px solid #CCCCCC;
+	box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075) inset;
+	border-left-style: none;
+}
+
+.video-extras-sparkbar-likes {
+	float: left;
+	height: 4px;
+	border-right: 1px solid white;
+	background: #060
+}
+
+.video-extras-sparkbar-dislikes {
+	float: right;
+	height: 4px;
+	margin-right: -1px;
+	background: #C00;
+}
+
+.video-extras-sparkbars {
+	margin-top: 3px;
+}
