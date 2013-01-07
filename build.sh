@@ -1,4 +1,4 @@
-git pull
+git pull origin master
 mvn clean install
 service tomcat6 stop
 rm -rf /var/lib/tomcat6/webapps/debatree
