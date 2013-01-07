@@ -45,7 +45,8 @@ public class GraphDatabase {
 	private GraphDatabase() {
 		try{
 
-			graphDatabase = (EmbeddedGraphDatabase) new GraphDatabaseFactory().newEmbeddedDatabase(PropsConfigMgrImpl.getInstance().getGraphDbPAth());
+			graphDatabase = (EmbeddedGraphDatabase) new GraphDatabaseFactory().newEmbeddedDatabase(System
+					.getProperty("user.home") + "/"+PropsConfigMgrImpl.getInstance().getGraphDbPAth());
 			registerShutdownHook(graphDatabase);
 		}catch(Exception ex){
 			logger.error(ex);
