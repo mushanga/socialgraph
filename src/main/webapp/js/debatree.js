@@ -39,7 +39,7 @@ function expandNode(user){
 			error : function(er)
 			{
 				expanding = false;
-				alert("Failure!");
+				alert("Bisey oldu ya da kullanicinin bilgileri gizli");
 			},
 
 		});
