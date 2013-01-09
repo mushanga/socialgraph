@@ -5,18 +5,18 @@ import java.util.List;
 import com.google.gson.annotations.SerializedName;
 
 
-public class FriendListJSONImpl extends UserBasicJSONImpl{
+public class FriendListJSONImpl{
 	@SerializedName("next_cursor")
-	private long nextCursor;
+	private String nextCursor;
 
 	
 	@SerializedName("friends")
 	private List<UserJSONImpl> friends;
 
 
-	public FriendListJSONImpl(List<UserJSONImpl> friends, long next_cursor) {
+	public FriendListJSONImpl(List<UserJSONImpl> friends, String nextCursor) {
 		super();
-		this.setNextCursor(next_cursor);
+		this.setNextCursor(nextCursor);
 		this.friends = friends;
 	}
 
@@ -35,14 +35,14 @@ public class FriendListJSONImpl extends UserBasicJSONImpl{
 
 
 
-	public long getNextCursor() {
+	public String getNextCursor() {
 		return nextCursor;
 	}
 
 
 
 
-	public void setNextCursor(long nextCursor) {
+	public void setNextCursor(String nextCursor) {
 		this.nextCursor = nextCursor;
 	}
 

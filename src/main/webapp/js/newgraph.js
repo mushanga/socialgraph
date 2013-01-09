@@ -165,7 +165,7 @@ function NewGraph(el) {
 	}
 
 	// set up the D3 visualisation in the specified element
-	var w = $(el).innerWidth(),
+	w = $(el).innerWidth();
 	h = $(el).innerHeight();
 
 
@@ -180,7 +180,11 @@ function NewGraph(el) {
 	.attr("width", w)
 	.attr("height", h);
 
-
+	vis.append("svg:rect")
+    .attr("width", w)
+    .attr("height", h)
+    .style("stroke", "#000");
+	
 //	Per-type markers, as they don't inherit styles.
 	vis.append("svg:defs").selectAll("marker")
 	.data(["suit", "licensing", "resolved"])
@@ -302,15 +306,7 @@ function NewGraph(el) {
         crc.exit().remove();
 
 		var crcEnter = crc.enter();
-		crcEnter.append("svg:circle")
-		.style("fill",function(d) {
-			for(var i in pathNodes){
-				if(pathNodes[i].id==d.id){
-					return "orange";
-				}
-			}
-			return "#ccc";
-		 })
+		crcEnter.append("svg:circle")		
 		.attr("class", "node")
 		.attr("r",  function(d) { return d.followers_count <1 ? 4.5 : (Math.sqrt(Math.sqrt(d.followers_count) ) / 8)+4.5; })
 		.on("click",  function(d) { expandNode(d);})
@@ -329,6 +325,14 @@ function NewGraph(el) {
 		})
 		.call(force.drag);
 		
+		crc.style("fill",function(d) {
+			for(var i in pathNodes){
+				if(pathNodes[i].id==d.id){
+					return "orange";
+				}
+			}
+			return "#ccc";
+		});
 		
 		
 		function getDescription(d){
@@ -408,10 +412,21 @@ function NewGraph(el) {
 		
 		force.on("tick", function() {
 			crc.attr("transform", function(d) {
-				return "translate(" + d.x + "," + d.y + ")";
-			});
+				var r = d.followers_count <1 ? 4.5 : (Math.sqrt(Math.sqrt(d.followers_count) ) / 8)+4.5;
 			
+				d.x = Math.max(r, Math.min(w - r, d.x));
+				d.y = Math.max(r, Math.min(h - r, d.y)); 
+
+				return "translate(" + d.x + "," + d.y + ")";
+			})
+				
+	        
 			crsr.attr("transform", function(d) {
+				var r = d.left_count <1 ? 4.5 : (Math.sqrt(Math.sqrt(d.left_count) ) / 8)+4.5;
+				
+				d.x = Math.max(r, Math.min(w - r, d.x));
+				d.y = Math.max(r, Math.min(h - r, d.y)); 
+
 				return "translate(" + d.x + "," + d.y + ")";
 			});
 			

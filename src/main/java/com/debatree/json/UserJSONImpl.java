@@ -4,8 +4,8 @@ import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.codehaus.jackson.annotate.JsonProperty;
 import org.neo4j.graphdb.Node;
 
+import com.debatree.data.User;
 import com.google.gson.annotations.SerializedName;
-import com.tcommerce.graph.GraphDataObjectIF;
 
 
 @JsonIgnoreProperties(ignoreUnknown=true)
@@ -35,6 +35,18 @@ public class UserJSONImpl extends UserBasicJSONImpl{
 		super.setDataToGDBNode(node);	
 		node.setProperty("followers_count",new Integer(getFollowersCount()));		
 		node.setProperty("friends_count",new Integer(getFriendsCount()));		
+	}
+	public void getDataFromDBObject(User user) {
+		setId(user.getId());
+		setScreenName(user.getScreenName());
+		setFollowersCount(user.getFollowersCount());
+		setFriendsCount(user.getFriendsCount());		
+	}
+	public void setDataToDBObject(User user) {
+		user.setId(this.getId());
+		user.setScreenName(this.getScreenName());
+		user.setFollowersCount(this.getFollowersCount());
+		user.setFriendsCount(this.getFriendsCount());		
 	}
 	public void setFollowersCount(int followersCount) {
 		this.followersCount = followersCount;

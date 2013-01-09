@@ -16,13 +16,14 @@ import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.neo4j.graphdb.index.Index;
-import org.neo4j.graphdb.index.IndexHits;
 import org.neo4j.graphdb.index.IndexManager;
 import org.neo4j.kernel.EmbeddedGraphDatabase;
 import org.neo4j.kernel.Traversal;
 
 import com.amazonbird.config.PropsConfigMgrImpl;
+import com.debatree.data.User;
 import com.debatree.json.UserJSONImpl;
+import com.debatree.service.UserServiceImpl;
 import com.debatree.task.TreeNode;
 import com.debatree.task.TweetTreeNode;
 import com.debatree.task.UserTreeNode;
@@ -37,8 +38,7 @@ public class GraphDatabase {
 	//Node properties
 	//Node properties
 	public static final String TEXT = "text";
-	public static final String USER_NAME = "user_name";
-	
+	public static final String USER_NAME = "screen_name";
 	
 	private static GraphDatabaseService graphDatabase = null;
 
@@ -130,10 +130,10 @@ public class GraphDatabase {
 
 	}
 	private void addOrUpdateNodeNoTx(UserJSONImpl user){
-		Index<Node> tweetsIndex = graphDatabase.index().forNodes(USER_ID);
+		Index<Node> usersIndex = graphDatabase.index().forNodes(USER_ID);
 
 		Node node1 = graphDatabase.createNode();
-		Node existing = tweetsIndex.get(USER_ID, user.getId()).getSingle();
+		Node existing = usersIndex.get(USER_ID, user.getId()).getSingle();
 		if(existing!=null){
 			node1 =  existing;
 		}
@@ -165,14 +165,20 @@ public class GraphDatabase {
 
 	}
 	public  void addOrUpdateNode(UserJSONImpl user) {
-		Transaction tx = graphDatabase.beginTx();
-		try {
-				addOrUpdateNodeNoTx(user);			
-			tx.success();
-			
-		} finally {
-			tx.finish();
-		}
+		UserServiceImpl userSvc = new UserServiceImpl();
+		
+		User newUser = new User();
+		user.setDataToDBObject(newUser);
+		userSvc.saveUser(newUser);
+//		
+//		Transaction tx = graphDatabase.beginTx();
+//		try {
+//				addOrUpdateNodeNoTx(user);			
+//			tx.success();
+//			
+//		} finally {
+//			tx.finish();
+//		}
 	}
 	public  List<UserJSONImpl> getFriends(long srcId) {
 		ArrayList<UserJSONImpl> friends = new ArrayList<UserJSONImpl>();
@@ -222,22 +228,32 @@ public class GraphDatabase {
 
 	}
 	public  UserJSONImpl  getUserByName(String name) {
-		UserJSONImpl user = null;
-		try {
-
-			IndexManager usersIndexMgr = graphDatabase.index();
-
-			Node userNode = usersIndexMgr.forNodes(USER_ID).get(USER_NAME, name).getSingle();
-			if (userNode != null) {
-				user = new UserJSONImpl();
-				user.getDataFromGDBNode(userNode);
-
-			}
-
-		} catch (Exception ex) {
-			logger.error(ex.getMessage(), ex);
-		}
-		return user;
+	UserServiceImpl userSvc = new UserServiceImpl();
+		
+	UserJSONImpl newUser = new UserJSONImpl();
+	try{
+		newUser.getDataFromDBObject(userSvc.getUserByName(name));
+	}catch(Exception ex){
+		newUser = null;
+	}
+		return newUser;
+//		UserJSONImpl user = null;
+//		try {
+//
+//			IndexManager usersIndexMgr = graphDatabase.index();
+//
+//			for ( Node userNode : usersIndexMgr.forNodes(USER_ID).query( "screen_name:"+name ) )
+//			{
+//				user = new UserJSONImpl();
+//				user.getDataFromGDBNode(userNode);
+//			    // This will return "The Matrix" from 1999 only.
+//			}
+//					
+//
+//		} catch (Exception ex) {
+//			logger.error(ex.getMessage(), ex);
+//		}
+//		return user;
 
 	}
 	public  void addTweetTree(TweetTreeNode dtn) {

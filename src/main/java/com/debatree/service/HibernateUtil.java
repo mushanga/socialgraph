@@ -29,7 +29,8 @@ public class HibernateUtil {
 	public static void initSessionFactory(String userName, String password){
 		try {
 			AnnotationConfiguration cfg = new AnnotationConfiguration();
-			cfg.addAnnotatedClass(com.debatree.data.Tweet.class);
+			//cfg.addAnnotatedClass(com.debatree.data.Tweet.class);
+			cfg.addAnnotatedClass(com.debatree.data.User.class);
 			
 			cfg.setProperty("hibernate.connection.username", userName);
 			cfg.setProperty("hibernate.connection.password", password);

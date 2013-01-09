@@ -50,6 +50,9 @@ public class TwitterClient {
 	Announcer announcer = null;
 	private static boolean DETAILED_LOG = false;
 
+	private static HashMap<String, List<UserJSONImpl>> cursorUserListMap = new HashMap<String, List<UserJSONImpl>>();
+	private static HashMap<String, String> cursorNextCursorMap = new HashMap<String, String>();
+	
 	private static Logger logger = Logger.getLogger(TwitterClient.class);
 
 	private void loadCredentials() throws DebatreeException {
@@ -255,13 +258,33 @@ public class TwitterClient {
 
 		return friends;
 	}
+	public class TwitterCrawler implements Runnable{
+		private UserJSONImpl user;
+		public TwitterCrawler(UserJSONImpl user, String dataCursor) {
+			super();
+			this.user = user;
+			this.dataCursor = dataCursor;
+		}
+		String dataCursor;
+		@Override
+		public void run() {
+			
+			try {
+				saveFriends(user, dataCursor);
+			} catch (DebatreeException e) {
+				logger.error(e.getMessage(), e);
+			}
 
-	public FriendListJSONImpl getFriends(String userName, String dataCursor) throws DebatreeException {
-		UserJSONImpl user = getUser(userName);
+		}	
+	}
+	
+	private FriendListJSONImpl saveFriends(UserJSONImpl user, String dataCursor) throws DebatreeException{
+		FriendListJSONImpl friendListJSON = null;
 		
-		
-		List<String> strList =new ArrayList<String>();
+		String nextCursor = "-1";
 		List<UserJSONImpl> friends = new ArrayList<UserJSONImpl>();
+
+		List<String> strList = new ArrayList<String>();
 
 		ArrayList<BasicNameValuePair> nvps = new ArrayList<BasicNameValuePair>();
 		if (!util.stringIsValid(dataCursor)) {
@@ -273,14 +296,12 @@ public class TwitterClient {
 		response = response.replace("\\", "");
 		List<String> tempList = Util.parse(response, "data-user-id=\"", "\"", null, null, "data-name");
 		strList.addAll(tempList);
-		long nextCursor = -1;
 		try {
-			nextCursor =Long.valueOf(Util.parse(response, "\"cursor\":\"", "\"", null, null));
+			nextCursor = Util.parse(response, "\"cursor\":\"", "\"", null, null);
 		} catch (Exception ex) {
 
 		}
 		strList.remove(String.valueOf(announcer.getId()));
-		
 
 		ArrayList<Long> idList = new ArrayList<Long>();
 		for (String str : strList) {
@@ -291,12 +312,34 @@ public class TwitterClient {
 		friends = getUsers(idList);
 
 		GraphDatabase.getInstance().addFriendships(user, friends);
-
 		logger.info(friends.size() + " friends of " + user.getScreenName() + " added to the graph.");
-		//friends = GraphDatabase.getInstance().getFriends(user.getId());
-
+		friendListJSON = new FriendListJSONImpl(friends, nextCursor);
 		
-		FriendListJSONImpl friendListJSON = new FriendListJSONImpl(friends, nextCursor);
+
+		if(!dataCursor.equals("-1")){
+			cursorNextCursorMap.put(dataCursor, nextCursor);
+
+			cursorUserListMap.put(dataCursor, friends);
+		}
+		logger.info("dataCursor: "+dataCursor+", "+"nextCursor: "+nextCursor);
+		return friendListJSON;
+	}
+	
+	public FriendListJSONImpl getFriends(String userName, String dataCursor) throws DebatreeException {
+		UserJSONImpl user = getUser(userName);
+		FriendListJSONImpl friendListJSON = null;
+		String nextCursor = "-1";
+		if (cursorUserListMap.containsKey(dataCursor)) {
+			List<UserJSONImpl> friends = new ArrayList<UserJSONImpl>();
+			friends.addAll(cursorUserListMap.get(dataCursor));
+			nextCursor= cursorNextCursorMap.get(dataCursor);
+			friendListJSON = new FriendListJSONImpl(friends, nextCursor);
+		} else {
+			friendListJSON = saveFriends(user, dataCursor);
+	
+		}		
+		Thread nextCursorObtainer = new Thread(new TwitterCrawler(user,friendListJSON.getNextCursor()));
+		nextCursorObtainer.start();
 		return friendListJSON;
 	}
 
