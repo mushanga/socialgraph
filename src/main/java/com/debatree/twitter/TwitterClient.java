@@ -11,7 +11,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
 
-import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.http.Header;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -25,9 +24,7 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.protocol.HTTP;
 import org.apache.log4j.Logger;
 
-import twitter4j.IDs;
 import twitter4j.Twitter;
-import twitter4j.TwitterException;
 import twitter4j.TwitterFactory;
 
 import com.amazonbird.announce.AnnouncerMgrImpl;
@@ -35,6 +32,7 @@ import com.amazonbird.db.base.DBMgrImpl;
 import com.amazonbird.db.data.Announcer;
 import com.amazonbird.util.Util;
 import com.debatree.exception.DebatreeException;
+import com.debatree.json.FriendListJSONImpl;
 import com.debatree.json.IDsJSONImpl;
 import com.debatree.json.TweetJSONImpl;
 import com.debatree.json.UserJSONImpl;
@@ -44,6 +42,7 @@ import com.google.gson.reflect.TypeToken;
 import com.tcommerce.graph.GraphDatabase;
 
 public class TwitterClient {
+	GraphDatabase gdb = GraphDatabase.getInstance();
 	Util util = Util.getInstance();
 	HttpClient client = null;
 	AnnouncerMgrImpl announcerMgr = AnnouncerMgrImpl.getInstance();
@@ -208,7 +207,7 @@ public class TwitterClient {
 
 	}
 
-	public List<UserJSONImpl> getFriends(String userName) throws DebatreeException {
+	public List<UserJSONImpl> getFriendsFromTwitter(String userName) throws DebatreeException {
 		UserJSONImpl user = getUser(userName);
 		List<UserJSONImpl> friends = GraphDatabase.getInstance().getFriends(user.getId());
 		if (!util.listIsValid(friends)) {
@@ -257,17 +256,62 @@ public class TwitterClient {
 		return friends;
 	}
 
-	public String getFriendsAsJSON(String screenName) throws DebatreeException {
-		List<UserJSONImpl> idList = getFriends(screenName);
+	public FriendListJSONImpl getFriends(String userName, String dataCursor) throws DebatreeException {
+		UserJSONImpl user = getUser(userName);
+		
+		
+		List<String> strList =new ArrayList<String>();
+		List<UserJSONImpl> friends = new ArrayList<UserJSONImpl>();
+
+		ArrayList<BasicNameValuePair> nvps = new ArrayList<BasicNameValuePair>();
+		if (!util.stringIsValid(dataCursor)) {
+			dataCursor = "-1";
+		}
+		nvps.add(new BasicNameValuePair("cursor", dataCursor));
+		nvps.add(new BasicNameValuePair("is_forward", "true"));
+		String response = get("https://twitter.com/" + user.getScreenName() + "/following/users", nvps);
+		response = response.replace("\\", "");
+		List<String> tempList = Util.parse(response, "data-user-id=\"", "\"", null, null, "data-name");
+		strList.addAll(tempList);
+		long nextCursor = -1;
+		try {
+			nextCursor =Long.valueOf(Util.parse(response, "\"cursor\":\"", "\"", null, null));
+		} catch (Exception ex) {
+
+		}
+		strList.remove(String.valueOf(announcer.getId()));
+		
+
+		ArrayList<Long> idList = new ArrayList<Long>();
+		for (String str : strList) {
+
+			idList.add(Long.valueOf(str));
+		}
+
+		friends = getUsers(idList);
+
+		GraphDatabase.getInstance().addFriendships(user, friends);
+
+		logger.info(friends.size() + " friends of " + user.getScreenName() + " added to the graph.");
+		//friends = GraphDatabase.getInstance().getFriends(user.getId());
+
+		
+		FriendListJSONImpl friendListJSON = new FriendListJSONImpl(friends, nextCursor);
+		return friendListJSON;
+	}
+
+	public String getFriendsAsJSON(String screenName, String dataCursor) throws DebatreeException {
+		FriendListJSONImpl idList = getFriends(screenName,dataCursor);
 
 		Gson gson = new GsonBuilder().setPrettyPrinting().create();
-		Type listOfObj = new TypeToken<List<UserJSONImpl>>() {
-		}.getType();
-		String s = gson.toJson(idList, listOfObj);
+	
+		String s = gson.toJson(idList, FriendListJSONImpl.class);
+
 		return s;
 
 	}
 
+	
 	private String get(String url) throws DebatreeException {
 		return get(url, null);
 	}
@@ -293,16 +337,29 @@ public class TwitterClient {
 
 		} else {
 
-			ArrayList<BasicNameValuePair> nvps = new ArrayList<BasicNameValuePair>();
-			String ids = DBMgrImpl.getIdListAsCommaSeparatedString4In(idList);
-			nvps.add(new BasicNameValuePair("user_id", ids));
-			String response = get("https://api.twitter.com/1/users/lookup.json", nvps);
-			Type listOfTestObject = new TypeToken<List<UserJSONImpl>>() {
-			}.getType();
+			
+			users = GraphDatabase.getInstance().getUsers(idList);
 
-			Gson gson = new Gson();
+			if (idList.size() != users.size()) {
+				ArrayList<Long> foundUserIds = new ArrayList<Long>();
 
-			users = (List<UserJSONImpl>) gson.fromJson(response, listOfTestObject);
+				for (UserJSONImpl user : users) {
+					foundUserIds.add(user.getId());
+				}
+				idList.removeAll(foundUserIds);
+
+				ArrayList<BasicNameValuePair> nvps = new ArrayList<BasicNameValuePair>();
+				String ids = DBMgrImpl.getIdListAsCommaSeparatedString4In(idList);
+				nvps.add(new BasicNameValuePair("user_id", ids));
+				String response = get("https://api.twitter.com/1/users/lookup.json", nvps);
+				Type listOfTestObject = new TypeToken<List<UserJSONImpl>>() {
+				}.getType();
+
+				Gson gson = new Gson();
+
+				users.addAll((List<UserJSONImpl>) gson.fromJson(response, listOfTestObject));
+			}
+			
 		}
 
 		return users;
@@ -311,18 +368,21 @@ public class TwitterClient {
 
 	public UserJSONImpl getUser(String screenName) throws DebatreeException {
 
-		String response = get("https://twitter.com/" + screenName);
-String id = util.parse(response,"data-user-id=\"" , "\"", "js-mini-profile-stats", "</ul>");
-String friendsCount = util.parse(response,"<strong>" , "<", "data-element-term=\"following_stats\"", "/strong>").replace(",", "");
-String followersCount = util.parse(response,"<strong>" , "<", "data-element-term=\"follower_stats\"", "/strong>").replace(",", "");
+		UserJSONImpl user = gdb.getUserByName(screenName);
+		if (user == null) {
+			String response = get("https://twitter.com/" + screenName);
+			String id = Util.parse(response, "data-user-id=\"", "\"", "js-mini-profile-stats", "</ul>");
+			String friendsCount = Util.parse(response, "<strong>", "<", "data-element-term=\"following_stats\"", "/strong>").replace(",", "");
+			String followersCount = Util.parse(response, "<strong>", "<", "data-element-term=\"follower_stats\"", "/strong>").replace(",", "");
 
-
-		UserJSONImpl user = new UserJSONImpl();
-		user.setScreenName(screenName);
-		user.setId(Long.valueOf(id));
-		user.setFriendsCount(Integer.valueOf(friendsCount));
-		user.setFollowersCount(Integer.valueOf(followersCount));
-		
+			user = new UserJSONImpl();
+			user.setScreenName(screenName);
+			user.setId(Long.valueOf(id));
+			user.setFriendsCount(Integer.valueOf(friendsCount));
+			user.setFollowersCount(Integer.valueOf(followersCount));
+			gdb.addOrUpdateNode(user);
+		}
+	
 		return user;
 
 	}
@@ -333,9 +393,9 @@ String followersCount = util.parse(response,"<strong>" , "<", "data-element-term
 
 		String screenName = idNameMap.get(id);
 		if (!Util.stringIsValid(screenName)) {
-		ArrayList<BasicNameValuePair> nvps = new ArrayList<BasicNameValuePair>();
-		nvps.add(new BasicNameValuePair("id", String.valueOf(id)));
-			String response = get("http://twitstreet.com/stock" ,nvps);
+			ArrayList<BasicNameValuePair> nvps = new ArrayList<BasicNameValuePair>();
+			nvps.add(new BasicNameValuePair("id", String.valueOf(id)));
+			String response = get("http://twitstreet.com/stock", nvps);
 			screenName = Util.getBetween(response, "http://twitter.com/#!/", "\"");
 			if (Util.stringIsValid(screenName)) {
 				idNameMap.put(id, screenName);

@@ -17,6 +17,7 @@ path.link.resolved {
 }
 
 circle {
+   cursor: pointer;
   fill: #ccc;
   stroke: #333;
   stroke-width: 1.5px;

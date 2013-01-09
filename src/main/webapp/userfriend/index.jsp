@@ -12,7 +12,8 @@
 <%@page import="com.debatree.task.FindDebateTask"%>
 <%
 response.setContentType("application/json");
-	String userName = request.getParameter("user");
+String userName = request.getParameter("user");
+String cursor = request.getParameter("cursor");
 long userId =0;
 try{
 
@@ -26,7 +27,7 @@ userId = Long.valueOf(request.getParameter("user_id"));
 
 		userName = tc.getUser(userId).getScreenName();
 	}
-	String json  = tc.getFriendsAsJSON(userName);
+	String json  = tc.getFriendsAsJSON(userName,cursor);
 
 %>
 <%=json%>

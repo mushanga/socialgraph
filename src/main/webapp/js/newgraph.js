@@ -1,6 +1,7 @@
 function NewGraph(el) {
 
 	var nodes;
+	var cursors = [];
 	var links;
 	var nodeIncomingMap = {};
 	var nodeOutgoingMap = {};
@@ -13,17 +14,54 @@ function NewGraph(el) {
 			pathNodes.push(obj);
 		}
 	}	// Add and remove elements on the graph object
-	this.addNode = function (obj,updateView) {
+	this.addNode = function (obj) {
 		if(!this.getNodeById(obj.id)){
 			
 			nodes.push(obj);
 		}
-		if(updateView){
-			this.update();
-		}
 	
 	}
-	this.addNodes = function (objList, updateView) {
+	this.getCursorByUserId = function(userId){
+		for(var i =0; i<cursors.length; i++){
+			if(userId==cursors[i].user.id){
+				return cursors[i];
+			}
+		}
+	}
+	this.addCursor = function (user,cursor) {
+
+				
+		var cursorObj = this.getCursorByUserId(user.id);
+		if (!cursorObj) {
+
+			var cursorObj = {
+				"user" : user,
+				"id" : cursor
+			};
+
+			cursors.push(cursorObj);	
+			this.addLink(user.id,cursorObj.id);
+		}
+	
+		
+	}
+	this.removeCursor = function (cursorId) {
+		
+		for(var i =0; i<cursors.length; i++){
+			if(cursorId==cursors[i].id){
+			
+				cursors.splice(i,1);
+				
+				for(var j in links){
+					if(cursorId==links[i].source.id){
+						links[i].splice(j,1);
+						
+					}
+				}
+			}
+		}
+	}
+	this.addNodes = function (objList) {
 		newNodes = new Array();
 		for(var i = 0; i<objList.length; i++){				
 			var obj = objList[i];
@@ -36,12 +74,7 @@ function NewGraph(el) {
 			}
 
 			
-		}
-
-		this.update();	
-
-
-		
+		}		
 	}
 
 
@@ -50,17 +83,25 @@ function NewGraph(el) {
 	this.removeNode = function (id) {
 		var i = 0;
 		var n = this.getNodeById(id);
+	
+		cursors.splice(findNodeIndex(id),1);
+	}
+
+
+	this.removeLink = function (sourceId,targetId) {
+		var i = 0;
+		var n = this.getNodeById(targetId);
 		while (i < links.length) {
 			if ((links[i]['source'] == n)||(links[i]['target'] == n)) links.splice(i,1);
 			else i++;
 		}
-		nodes.splice(findNodeIndex(id),1);
-		this.update();
+		
 	}
 
 	this.clear = function () {
 		nodes.length = 0;
 		links.length = 0;
+		cursors.length = 0;
 		nodeIncomingMap = {};
 		nodeOutgoingMap = {};
 		pathNodes = new Array();
@@ -70,55 +111,46 @@ function NewGraph(el) {
 
 	this.addLink = function (sourceId, targetId) {
 
-		if(!this.getLinkBySrcTrgId(sourceId,targetId)){
+		if (!this.getLinkBySrcTrgId(sourceId, targetId)) {
+			var srcObj = this.getNodeById(sourceId);
+			var trgObj = this.getNodeById(targetId);
+			links.push({
+				"source" : srcObj,
+				"target" : trgObj
+			});
 
-			links.push({"source":getNodeById(sourceId),"target":getNodeById(targetId)});
-
-
-			increaseOutgoing(this.getNodeById(sourceId));
-			increaseIncoming(this.getNodeById(targetId));
-			this.update();
+			increaseOutgoing(srcObj);
+			increaseIncoming(trgObj);
 		}
-		
+
 	}
 
-	this.addLinks = function (sourceIdList, targetIdList,updateView) {
+	this.addLinks = function(sourceIdList, targetIdList,updateView) {
 		for(var i = 0; i<sourceIdList.length; i++){
 			sourceId = sourceIdList[i];
 			targetId = targetIdList[i];
-			if(!this.getLinkBySrcTrgId(sourceId,targetId)){
-
-				links.push({"source":getNodeById(sourceId),"target":getNodeById(targetId)});
-
-
-				increaseOutgoing(this.getNodeById(sourceId));
-				increaseIncoming(this.getNodeById(targetId));
-				
-				
-			}
+			this.addLink(sourceId, targetId);
 		}
-		this.update();
 			
 		
 	}
 	var click = function(id) {
 		for (var i in nodes) {if (nodes[i]["id"] === id) return nodes[i]};
 	}
-	this.getNodeById = function getNById(id) {
+	this.getNodeById = function getNodeById(id) {
 		for (var i in nodes) {
 			if (nodes[i]["id"] === id){
 				return nodes[i]
 			}
-		}
-	}
-	function getNodeById(id) {
-		for (var i in nodes) {
-			if (nodes[i]["id"] === id){
-				return nodes[i]
+		}	
+		for (var i in cursors) {
+			if (cursors[i]["id"] === id){
+				return cursors[i]
 			}
 		}
 	}
 
+	
 	this.getLinkBySrcTrgId = function(srcId,trgId) {
 		for (var i in links) {
 			if (links[i].source["id"] === srcId && links[i].target["id"] === trgId){
@@ -129,6 +161,7 @@ function NewGraph(el) {
 
 	var findNodeIndex = function(id) {
 		for (var i in nodes) {if (nodes[i]["id"] === id) return i};
+		for (var i in cursors) {if (cursors[i]["id"] === id) return i};
 	}
 
 	// set up the D3 visualisation in the specified element
@@ -138,8 +171,10 @@ function NewGraph(el) {
 
 	var force = d3.layout.force()
 	.size([w, h])
-	.linkDistance(60)
-	.charge(-300);
+	.linkDistance(80)
+	.charge(-300)
+	
+	.gravity(0.4);
 
 	var vis = this.vis = d3.select(el).append("svg:svg")
 	.attr("width", w)
@@ -161,27 +196,17 @@ function NewGraph(el) {
 	.attr("d", "M0,-5L10,0L0,5");
 	var pathGroup = vis.append("svg:g");
 	var circleGroup = vis.append("svg:g");
+	var crsrGroup = vis.append("svg:g");
 	var textGroup = vis.append("svg:g");
+	var cursorTextGroup = vis.append("svg:g");
 
 	visibleNodes = force.nodes();
 	visibleLinks = force.links();
-nodes = new Array();
-links= new Array();
-	function getVisibleLinks(visibleLinks,visibleNodeIds){
-		
-		for(var i = 0; i<links.length; i++){				
-			var link = links[i];
-
-			if(visibleNodeIds.indexOf(link.source.id)>-1 && visibleNodeIds.indexOf(link.target.id)>-1){
-				if(visibleLinks.indexOf(link)<0){
-					visibleLinks.push(link);
-				}
-				
-			}
-		}
-		return visibleLinks;
-
-	}
+	
+	nodes = new Array();
+	links= new Array();
+	
+	
 	
 	function addAll(from,to){
 		
@@ -200,39 +225,65 @@ links= new Array();
 			}
 		}
 	}
+	function getVisibleLinks(visibleLinks,visibleNodeIds){
+		
+		for(var i = 0; i<links.length; i++){				
+			var link = links[i];
+
+			if(visibleNodeIds.indexOf(link.source.id)>-1 && visibleNodeIds.indexOf(link.target.id)>-1){
+				if(visibleLinks.indexOf(link)<0){
+					visibleLinks.push(link);
+				}
+				
+			}
+		}
+		return visibleLinks;
+
+	}
+	
 	
 	this.update = function update() {
-
-		visibleNodes = force.nodes();
-		visibleLinks = force.links();
+//
+//		visibleNodes = force.nodes();
+//		visibleLinks = force.links();
 		var visibleNodeIds = new Array();
 		visibleNodes.length = 0;
 		visibleLinks.length = 0;
-		if(nodes.length<10){
+		
+//		if(nodes.length<1000){
 			addAll(nodes, visibleNodes);
-		}else{
-			addAll(newNodes, visibleNodes);
-			addAll(pathNodes, visibleNodes);
-			for(var i = 0; i<nodes.length; i++){
-				if(nodeIncomingMap[nodes[i].id]>1){
-					var arr = new Array();
-					arr.push(nodes[i]);
-					addAll(arr,visibleNodes);
-				}
-			}
-			
-		}
+			addAll(cursors, visibleNodes);
+//		}else{
+//			addAll(newNodes, visibleNodes);
+//			addAll(pathNodes, visibleNodes);
+//			
+//			for(var i = 0; i<nodes.length; i++){
+//				if(nodeIncomingMap[nodes[i].id]>1){
+//					var arr = new Array();
+//					arr.push(nodes[i]);
+//					addAll(arr,visibleNodes);
+//				}
+//			}
+//			
+//		}
 		for(var i = 0; i<visibleNodes.length; i++){				
 			var visibleNode = visibleNodes[i];
 			visibleNodeIds.push(visibleNode.id);
-			
 		}
-		
-		getVisibleLinks(visibleLinks,visibleNodeIds);
-		
+//
+//		for(var i = 0; i<cursors.length; i++){				
+//			var cursor = cursors[i];
+//			visibleNodeIds.push(cursor.id);
+//		}
 
-		force.nodes(visibleNodes);
-		force.links(visibleLinks);
+		getVisibleLinks(visibleLinks,visibleNodeIds);
+
+//		var allNodes = new Array();
+//		addAll(visibleNodes, allNodes);
+//		allNodes.push(cursors);
+
+//		force.nodes(visibleNodes);
+//		force.links(visibleLinks);
 		
 		var pth = pathGroup.selectAll(".link")
 		.data(visibleLinks, function(d) { return d.source.id + "-" + d.target.id; });
@@ -246,17 +297,81 @@ links= new Array();
 
 
 		var crc = circleGroup.selectAll(".node")
-		.data(visibleNodes, function(d) { return d.id;});
-
-		
+		.data(nodes, function(d) { return d.id;});
 
         crc.exit().remove();
 
 		var crcEnter = crc.enter();
 		crcEnter.append("svg:circle")
+		.style("fill",function(d) {
+			for(var i in pathNodes){
+				if(pathNodes[i].id==d.id){
+					return "orange";
+				}
+			}
+			return "#ccc";
+		 })
 		.attr("class", "node")
 		.attr("r",  function(d) { return d.followers_count <1 ? 4.5 : (Math.sqrt(Math.sqrt(d.followers_count) ) / 8)+4.5; })
-		.on("click", expandNode)
+		.on("click",  function(d) { expandNode(d);})
+//		.on("mouseup",  function(d) { clearTimeout(timeoutId);expandNode(d);})
+//		.on("mousemove",  function(d) { clearTimeout(timeoutId);})
+//		.on("mouseleave",  function(d) { clearTimeout(timeoutId);})
+//		.on("mousedown",  function(data) {
+//				var a = data;
+//			    timeoutId = setTimeout(shrinkNode, 1000);
+//			})
+		.on("mouseover",function(ele){
+			vis.selectAll(".text"+ele.id).style("display","block");
+		})
+		.on("mouseout",function(ele){
+			vis.selectAll(".text"+ele.id).style("display","none");
+		})
+		.call(force.drag);
+		
+		
+		
+		function getDescription(d){
+			return d.screen_name+" (Following: "+d.friends_count+", Followed by: "+d.followers_count+")";
+		}
+		
+		var txt = textGroup.selectAll("g").data(nodes, function(d) { 
+												return getDescription(d);
+											});
+		txt.exit().remove();
+		
+		var txtEnter = txt.enter();
+
+		var txtCont = txtEnter.append("svg:g");
+		txtCont.append("svg:text")
+		.style("display","none")		
+		.attr("x", 8)
+		.attr("y", ".31em")
+		.attr("class", function(d) { return "shadow text"+d.id; })
+		.text(function(d) { return getDescription(d); });
+
+		txtCont.append("svg:text")
+		.style("display","none")
+		.attr("x", 8)
+		.attr("y", ".31em")
+		.attr("class", function(d) { return "text text"+d.id; })
+		.text(function(d) { return getDescription(d); });
+
+		
+		
+		
+		var crsr = crsrGroup.selectAll(".cursor")
+		.data(cursors, function(d) { return d.id;});
+
+		crsr.exit().remove();
+
+		var crsrEnter = crsr.enter();
+		crsrEnter.append("svg:circle")
+		.attr("class", "cursor")
+		.style("fill",  function(d) { return d3.rgb(39,180,233) })
+//		.attr("r",  function(d) { return 10})
+		.attr("r",  function(d) { return d.left_count <1 ? 4.5 : (Math.sqrt(Math.sqrt(d.left_count) ) / 4)+4.5; })
+		.on("click", expandCursor)
 		.on("mouseover",function(ele){
 			vis.selectAll(".text"+ele.id).style("display","block");
 		})
@@ -265,49 +380,38 @@ links= new Array();
 		})
 		.call(force.drag);
 
-//		.style("fill", function(d) {
-//			var followerFriendRatio = d.followers_count / d.friends_count;
-//			if(followerFriendRatio < 0.1){
-//				return "red";
-//			}else if(followerFriendRatio < 2){
-//				return "yellow";
-//			}else {
-//				return "green";
-//			}
-//			
-//		})
 		
+		var cursorTxt = cursorTextGroup.selectAll("g").data(cursors, function(d) { 
+			return d.id;
+		});
 		
-		function getDescription(d){
-			return d.screen_name+" (Following: "+d.friends_count+", Followed by: "+d.followers_count+")";
-		}
+		cursorTxt.exit().remove();
 		
-		var txt = textGroup.selectAll("g").data(visibleNodes, function(d) { 
-												return getDescription(d);
-											});
-		// A copy of the text with a thick white stroke for legibility.
-		
-//		
-		txt.exit().remove();
-		txt.append("svg:text")
+		var cursorTxtEnter = cursorTxt.enter();
+		var cursorTxtCont = cursorTxtEnter.append("svg:g");
+		cursorTxtCont.append("svg:text")
 		.style("display","none")		
 		.attr("x", 8)
 		.attr("y", ".31em")
 		.attr("class", function(d) { return "shadow text"+d.id; })
-		.text(function(d) { return getDescription(d); });
-
-		txt.append("svg:text")
+		.text(function(d) { return d.user.screen_name+" is following "+ d.left_count+ " more..."; });
+//		.text(function(d) { return "More..."; });
+		
+		cursorTxtCont.append("svg:text")
 		.style("display","none")
 		.attr("x", 8)
 		.attr("y", ".31em")
 		.attr("class", function(d) { return "text text"+d.id; })
-		.text(function(d) { return getDescription(d); });
-
-		
-		txt.enter().append("svg:g");
+		.text(function(d) { return d.user.screen_name+" is following "+ d.left_count+ " more..."; });
+//		.text(function(d) { return "More..."; });
+			
 		
 		force.on("tick", function() {
 			crc.attr("transform", function(d) {
+				return "translate(" + d.x + "," + d.y + ")";
+			});
+			
+			crsr.attr("transform", function(d) {
 				return "translate(" + d.x + "," + d.y + ")";
 			});
 			
@@ -317,8 +421,11 @@ links= new Array();
 				dr = Math.sqrt(dx * dx + dy * dy);
 				return "M" + d.source.x + "," + d.source.y + "A" + dr + "," + dr + " 0 0,1 " + d.target.x + "," + d.target.y;
 			});
-		
+
 			txt.attr("transform", function(d) {
+				return "translate(" + d.x + "," + d.y + ")";
+			});
+			cursorTxt.attr("transform", function(d) {
 				return "translate(" + d.x + "," + d.y + ")";
 			});
 		});

@@ -16,6 +16,8 @@ import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.neo4j.graphdb.index.Index;
+import org.neo4j.graphdb.index.IndexHits;
+import org.neo4j.graphdb.index.IndexManager;
 import org.neo4j.kernel.EmbeddedGraphDatabase;
 import org.neo4j.kernel.Traversal;
 
@@ -105,7 +107,7 @@ public class GraphDatabase {
 
 	}
 
-	private void addFriendshipNoTransaction(UserJSONImpl user, UserJSONImpl friend){
+	private void addFriendshipNoTx(UserJSONImpl user, UserJSONImpl friend){
 		Index<Node> tweetsIndex = graphDatabase.index().forNodes(USER_ID);
 
 		Node node1 = graphDatabase.createNode();		
@@ -127,16 +129,18 @@ public class GraphDatabase {
 		node1.createRelationshipTo(node2, RelTypes.FOLLOWS);
 
 	}
-	private void deleteFriendshipNoTransaction(UserJSONImpl user, UserJSONImpl friend){
-	
-		
-		
-		
-		
-		//TODO caecaecaeca
-		
+	private void addOrUpdateNodeNoTx(UserJSONImpl user){
+		Index<Node> tweetsIndex = graphDatabase.index().forNodes(USER_ID);
+
+		Node node1 = graphDatabase.createNode();
+		Node existing = tweetsIndex.get(USER_ID, user.getId()).getSingle();
+		if(existing!=null){
+			node1 =  existing;
+		}
+		user.setDataToGDBNode(node1);
 
 	}
+	
 	public  void addFriendship(UserJSONImpl user, UserJSONImpl friend) {
 		ArrayList<UserJSONImpl> friends = new ArrayList<UserJSONImpl>();
 		friends.add(friend);
@@ -149,7 +153,7 @@ public class GraphDatabase {
 		try {
 			for(UserJSONImpl friend : friends){
 
-				addFriendshipNoTransaction(user, friend);
+				addFriendshipNoTx(user, friend);
 			}
 			
 			tx.success();
@@ -160,12 +164,23 @@ public class GraphDatabase {
 
 
 	}
+	public  void addOrUpdateNode(UserJSONImpl user) {
+		Transaction tx = graphDatabase.beginTx();
+		try {
+				addOrUpdateNodeNoTx(user);			
+			tx.success();
+			
+		} finally {
+			tx.finish();
+		}
+	}
 	public  List<UserJSONImpl> getFriends(long srcId) {
 		ArrayList<UserJSONImpl> friends = new ArrayList<UserJSONImpl>();
 		try {
 
-			Index<Node> tweetsIndex = graphDatabase.index().forNodes(USER_ID);
-			Node node = tweetsIndex.get(USER_ID, srcId).getSingle();
+			Index<Node> usersIndex = graphDatabase.index().forNodes(USER_ID);
+			Node node = usersIndex.get(USER_ID, srcId).getSingle();
+		
 			if (node != null) {
 				Expander expander = Traversal.expanderForTypes(RelTypes.FOLLOWS, Direction.OUTGOING);
 
@@ -182,6 +197,47 @@ public class GraphDatabase {
 			System.out.print(ex);
 		}
 		return friends;
+
+	}
+
+	public List<UserJSONImpl> getUsers(List<Long> userIdArray) {
+		ArrayList<UserJSONImpl> users = new ArrayList<UserJSONImpl>();
+		try {
+
+			IndexManager usersIndexMgr = graphDatabase.index();
+			for (Long userId : userIdArray) {
+				Node userNode = usersIndexMgr.forNodes(USER_ID).get(USER_ID, userId).getSingle();
+				if (userNode != null) {
+					UserJSONImpl user = new UserJSONImpl();
+					user.getDataFromGDBNode(userNode);
+					users.add(user);
+				}
+
+			}
+
+		} catch (Exception ex) {
+			logger.error(ex.getMessage(), ex);
+		}
+		return users;
+
+	}
+	public  UserJSONImpl  getUserByName(String name) {
+		UserJSONImpl user = null;
+		try {
+
+			IndexManager usersIndexMgr = graphDatabase.index();
+
+			Node userNode = usersIndexMgr.forNodes(USER_ID).get(USER_NAME, name).getSingle();
+			if (userNode != null) {
+				user = new UserJSONImpl();
+				user.getDataFromGDBNode(userNode);
+
+			}
+
+		} catch (Exception ex) {
+			logger.error(ex.getMessage(), ex);
+		}
+		return user;
 
 	}
 	public  void addTweetTree(TweetTreeNode dtn) {

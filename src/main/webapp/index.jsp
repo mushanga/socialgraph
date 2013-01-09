@@ -34,15 +34,21 @@ TwitterClient tc = TwitterClient.getDefaultClient();
     </style>
   </head>
   <body>
-    <h2>
-      Twitter Graph
-    </h2>
-    <input type="text" id="usernameinput"/>
-    <input type="button" onclick="getUserAsRoot(document.getElementById('usernameinput').value)" value="Get"/>
-    <input type="button" onclick="graph.clear()" value="Clear"/>
-    
-    <div id="screen" style="width:1000px; height: 750px"></div>
-    
+	<h2 style="text-align: center">Twitter Graph</h2>
+	<div style="width: 1000px; height: 30px;text-align: center; font-size: 12px;">
+		
+		Enter a Twitter user name: 
+		<input type="text" id="usernameinput" /> 
+		<input type="button" onclick="getUserAsRoot(document.getElementById('usernameinput').value)"
+			value="Get" />
+		<input type="button" onclick="graph.clear()"
+			value="Clear" />
+		
+	</div>
+	  <div id="loadingDiv" style="width:1000px; height: 30px; text-align: center"></div>
+   
+    <div id="screen" style="width:1000px; height: 600px"></div>
+   
     <script type="text/javascript" src="http://code.jquery.com/jquery.min.js"></script>
     <script src="http://d3js.org/d3.v3.min.js"></script>
     <script type="text/javascript" src="js/debatree.js"></script>
