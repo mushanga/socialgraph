@@ -23,6 +23,7 @@ public class UserServiceImpl {
 			session.getTransaction().commit();
 		
 		} catch (HibernateException e) {
+			session.getTransaction().rollback();
 			logger.error(e.getMessage(),e);
 		}finally{
 			session.close();
