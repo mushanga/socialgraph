@@ -47,7 +47,7 @@ TwitterClient tc = TwitterClient.getDefaultClient();
 	</div>
 	  <div id="loadingDiv" style="width:1000px; height: 30px; text-align: center"></div>
    
-    <div id="screen" style="width:1000px; height: 600px"></div>
+    <div id="screen" style="width:1000px; height: 700px"></div>
    
     <script type="text/javascript" src="http://code.jquery.com/jquery.min.js"></script>
     <script src="http://d3js.org/d3.v3.min.js"></script>

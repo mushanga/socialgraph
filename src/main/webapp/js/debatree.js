@@ -2,6 +2,7 @@
 
 function getUserAsRoot(userName){
 	tw.showUserByName(userName, function(user) {
+		user.pic_url = user.profile_image_url_https;
 		 graph.addNode(user,true);
 		 expandNode(user);
   	});
@@ -17,6 +18,7 @@ function expandCursor(cursor){
 	
 	
 	var user = cursor.user;
+	
 	if(!expanding){
 
 		expanding = true;
@@ -55,33 +57,55 @@ function showErrorMessage(msg){
 function hideErrorMessage(){
 	$("#loadingDiv").html();
 }
-function expandNode(user){
+function expandNode(user, doNotSetActive){
 	
 	
 	if(!expanding){
 		showLoading();
 		expanding = true;
-		graph.addToPathNodes(user);
-		if(!user.next_cursor){
-			user.next_cursor = "-1";
-		}
-		$.ajax({
+		if(graph.activeNode && graph.activeNode.id == user.id){
+			graph.activeNode = null;
 
-			url : "userfriend/?user="+user.screen_name+"&cursor="+user.next_cursor,
-			dataType : "json",
-			success :  function(data)
-			{
-				
-				handleResponse(data,user);
-			},
-			error : function(er)
-			{
-				expanding = false;
+			expanding = false;
+			graph.update();
+			hideLoading();
+		}else{
+			if(!doNotSetActive){
+				graph.addToPathNodes(user);				
+			}
+
+			if(!user.next_cursor){
+				user.next_cursor = "-1";
+			}
+			if(user.next_cursor == "0"){
+				graph.update();
 				hideLoading();
-				showErrorMessage("Friends of "+user.screen_name+" are hidden...");
-			},
+				expanding = false;
+			}else{	
+				$.ajax({
 
-		});
+				url : "userfriend/?user="+user.screen_name+"&cursor="+user.next_cursor,
+				dataType : "json",
+				success :  function(data)
+				{
+					
+					handleResponse(data,user);
+				},
+				error : function(er)
+				{
+					expanding = false;
+					hideLoading();
+					showErrorMessage("Friends of "+user.screen_name+" are hidden...");
+				},
+
+			});
+				
+			}
+		
+		}
+	
+		
+			
 
 	}
 }  
@@ -116,10 +140,52 @@ function handleResponse(data, user){
 		newCursor.left_count =leftCount;
 		user.next_cursor = data.next_cursor;
 	}else{
-		user.next_cursor = "-1";
+		user.next_cursor = "0";
 	}
 	
 	graph.update();
 	expanding = false;
 
+	if(graph.activeNode){
+		if (user.id == graph.activeNode.id) {
+			for ( var i in data.friends) {
+				var friend = data.friends[i];
+
+				var friendNode = graph.getNodeById(friend.id);
+
+				if (friendNode.next_cursor != "0") {
+					usersToExpand.push(friendNode);
+				}
+			}
+			if(user.next_cursor!="0"){
+				usersToExpand.push(user);
+			}
+		}
+
+		if(graph.activeNode.next_cursor=="0"){
+			var friendLinks = graph.getLinksBySrcId(graph.activeNode.id);
+			for(var i in friendLinks){
+				var friend = friendLinks[i].target;
+				if(friend.next_cursor!="0"){
+					usersToExpand.push(friend);	
+				}
+				
+			}
+		}
+
+	}
+	
+	var userToExpand = usersToExpand[0];
+	if(userToExpand){
+		usersToExpand.splice(0,1);
+		if(userToExpand.next_cursor && userToExpand.next_cursor!="0"){
+
+			expandCursor(graph.getCursorByUserId(userToExpand.id));
+		}else{
+			expandNode(userToExpand,true);
+			
+		}
+	}
+
 }
+var usersToExpand = new Array();

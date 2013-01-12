@@ -11,12 +11,14 @@ import com.google.gson.annotations.SerializedName;
 @JsonIgnoreProperties(ignoreUnknown=true)
 public class UserJSONImpl extends UserBasicJSONImpl{
 	@SerializedName("followers_count")
-    @JsonProperty("followers_count")
 	private int followersCount;
 
 	@SerializedName("friends_count")
-    @JsonProperty("friends_count")
 	private int friendsCount;
+	
+	@SerializedName("pic_url")
+	private String picUrl;
+	
 	public int getFollowersCount() {
 		return followersCount;
 	}
@@ -40,19 +42,27 @@ public class UserJSONImpl extends UserBasicJSONImpl{
 		setId(user.getId());
 		setScreenName(user.getScreenName());
 		setFollowersCount(user.getFollowersCount());
-		setFriendsCount(user.getFriendsCount());		
+		setFriendsCount(user.getFriendsCount());
+		setPicUrl(user.getPicUrl());
 	}
 	public void setDataToDBObject(User user) {
 		user.setId(this.getId());
 		user.setScreenName(this.getScreenName());
 		user.setFollowersCount(this.getFollowersCount());
 		user.setFriendsCount(this.getFriendsCount());		
+		user.setPicUrl(this.getPicUrl());
 	}
 	public void setFollowersCount(int followersCount) {
 		this.followersCount = followersCount;
 	}
 	public void setFriendsCount(int friendsCount) {
 		this.friendsCount = friendsCount;
+	}
+	public String getPicUrl() {
+		return picUrl;
+	}
+	public void setPicUrl(String picUrl) {
+		this.picUrl = picUrl;
 	}
 	
 

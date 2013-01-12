@@ -16,10 +16,18 @@ public class UserServiceImpl {
 	private static Logger logger = Logger.getLogger(UserServiceImpl.class);
 	public void saveUser(User user) {
 		Session session = HibernateUtil.getSession();
-	
+
+		User t = (User) session.get(User.class, user.getId());
+		
 		try {
 			session.beginTransaction();
-			session.save(user);
+			if(t!=null){
+				t.retrieveValuesFrom(user);
+				session.update(t);
+			}else{
+				session.save(user);
+				
+			}
 			session.getTransaction().commit();
 		
 		} catch (HibernateException e) {

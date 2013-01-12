@@ -11,6 +11,8 @@ public class User {
 	@Column(name="screen_name", unique=true) String screenName;
 	
 
+	@Column(name="pictureurl")
+	private  String picUrl;
 	@Column(name="friends_count")  int friendsCount;
 	@Column(name="followers_count")  int followersCount;
 	public long getId() {
@@ -36,6 +38,20 @@ public class User {
 	}
 	public void setFollowersCount(int followersCount) {
 		this.followersCount = followersCount;
+	}
+	public String getPicUrl() {
+		return picUrl;
+	}
+	public void setPicUrl(String picUrl) {
+		this.picUrl = picUrl;
+	}
+	
+	public void retrieveValuesFrom(User user){
+		this.setFollowersCount(user.getFollowersCount());
+		this.setFriendsCount(user.getFriendsCount());
+		this.setId(user.getId());
+		this.setPicUrl(user.getPicUrl());
+		this.setScreenName(user.getScreenName());
 	}
 	
 }

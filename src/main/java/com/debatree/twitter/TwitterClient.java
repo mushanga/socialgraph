@@ -294,22 +294,29 @@ public class TwitterClient {
 		nvps.add(new BasicNameValuePair("is_forward", "true"));
 		String response = get("https://twitter.com/" + user.getScreenName() + "/following/users", nvps);
 		response = response.replace("\\", "");
-		List<String> tempList = Util.parse(response, "data-user-id=\"", "\"", null, null, "data-name");
-		strList.addAll(tempList);
+		List<String> idList = Util.parse(response, "data-user-id=\"", "\"", null, null, "data-name");
+		List<String> screenNameList = Util.parse(response, "data-screen-name=\"", "\"", null, null, "data-item-type");
+		List<String> imgList = Util.parse(response, "src=\"", "\"", null, null, "img class");
+		
+		ArrayList<UserJSONImpl> usList = new ArrayList<UserJSONImpl>();
+		for(int i=0; i<idList.size(); i++){
+			
+
+			UserJSONImpl newUser = new UserJSONImpl();
+			newUser.setScreenName(screenNameList.get(i));
+			newUser.setId(Long.valueOf(idList.get(i)));
+			newUser.setPicUrl(imgList.get(i));
+			gdb.addOrUpdateNode(newUser);
+			usList.add(newUser);
+		}
 		try {
 			nextCursor = Util.parse(response, "\"cursor\":\"", "\"", null, null);
 		} catch (Exception ex) {
 
 		}
-		strList.remove(String.valueOf(announcer.getId()));
 
-		ArrayList<Long> idList = new ArrayList<Long>();
-		for (String str : strList) {
-
-			idList.add(Long.valueOf(str));
-		}
-
-		friends = getUsers(idList);
+		friends = usList;
+//		friends = getUsers(idList);
 
 		GraphDatabase.getInstance().addFriendships(user, friends);
 		logger.info(friends.size() + " friends of " + user.getScreenName() + " added to the graph.");
@@ -344,11 +351,11 @@ public class TwitterClient {
 	}
 
 	public String getFriendsAsJSON(String screenName, String dataCursor) throws DebatreeException {
-		FriendListJSONImpl idList = getFriends(screenName,dataCursor);
+		FriendListJSONImpl friendList = getFriends(screenName,dataCursor);
 
 		Gson gson = new GsonBuilder().setPrettyPrinting().create();
 	
-		String s = gson.toJson(idList, FriendListJSONImpl.class);
+		String s = gson.toJson(friendList, FriendListJSONImpl.class);
 
 		return s;
 
