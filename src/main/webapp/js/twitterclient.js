@@ -37,24 +37,21 @@ function TwitterClient(){
 	this.getFriendListById = function(id,callback){
 		twitterGet("https://api.twitter.com/1/friends/ids.json?user_id="+id,function(idList){
 	
-			var idsStr = util.getListAsCommaSeparated(idList.ids.slice(0,10));
-		
+			while(idList.ids.length > 100){
+				var idsStr = util.getListAsCommaSeparated(idList.ids.splice(0,100));
+				
+				twitterGet("https://api.twitter.com/1/users/lookup.json?user_id="+idsStr,function(users){
+					callback(users);
+				});
+				
+			}
+			var idsStr = util.getListAsCommaSeparated(idList.ids);
+			
 			twitterGet("https://api.twitter.com/1/users/lookup.json?user_id="+idsStr,function(users){
-				var bidirectionalFriends = [];
-				for(var i=0; i<users.length;i++){
-					var user = users[i];
-					twitterGet("https://api.twitter.com/1/friendships/show.json?source_id="+id+"&target_id="+user.id,function(data){
-						
-						if(data.relationship.target.following){
-							callback(getUserById(users,data.relationship.target.id));
-							
-						}
-
-						
-						
-					});
-				}
+				callback(users);
 			});
+			
+			
 		});	
 	}   
 	this.getFriendListByName = function(userName,callback){

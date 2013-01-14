@@ -1,5 +1,5 @@
 function NewGraph(el) {
-
+	var clickedImageId;
 	var nodes;
 	var cursors = [];
 	var links;
@@ -8,7 +8,8 @@ function NewGraph(el) {
 	var pathNodes = new Array();
 	var newNodes = [];
 	this.activeNode = {};
-	
+	this.maxIncoming = 2;
+	this.threshold = 2;
 	// Add and remove elements on the graph object
 	this.addToPathNodes = function (obj) {
 	
@@ -19,14 +20,19 @@ function NewGraph(el) {
 		for(var i in nodes){
 			nodes[i].fixed = false;
 		}
-		this.activeNode.x = firstViewBottomRight.x/2;
-		this.activeNode.y = firstViewBottomRight.y/2;
+		this.activeNode.x = secViewBottomRight.x/2;
+		this.activeNode.y = secViewBottomRight.y/2;
 		this.activeNode.fixed = true;
 	}	// Add and remove elements on the graph object
 	this.addNode = function (obj) {
-		if(!this.getNodeById(obj.id)){
+		
+		var existing = this.getNodeById(obj.id);
+		if(!existing){
 			
 			nodes.push(obj);
+		}else{
+			existing.friends_count = obj.friends_count;
+			existing.followers_count= obj.followers_count;
 		}
 	
 	}
@@ -71,17 +77,10 @@ function NewGraph(el) {
 		}
 	}
 	this.addNodes = function (objList) {
-		newNodes = new Array();
+		
 		for(var i = 0; i<objList.length; i++){				
 			var obj = objList[i];
-			if(!this.getNodeById(obj.id)){
-
-				nodes.push(obj);
-				newNodes.push(obj);
-			}else{
-				newNodes.push(this.getNodeById(obj.id));
-			}
-
+			this.addNode(obj);
 			
 		}		
 	}
@@ -195,25 +194,33 @@ function NewGraph(el) {
 	w = $(el).innerWidth();
 	h = $(el).innerHeight();
 
-	secViewHeight = 150;
+	firstViewHeight = 50;
+	thirdViewHeight = 200;
+	secViewHeight = h-firstViewHeight-thirdViewHeight;
+	
 	firstViewTopLeft = {"x":0,"y":0};
 	firstViewTopRight = {"x":w,"y":0};
-	firstViewBottomLeft = {"x":0,"y":h-secViewHeight};
-	firstViewBottomRight = {"x":w,"y":h-secViewHeight};
-	
-	secViewTopLeft = {"x":0,"y":h-secViewHeight};
-	secViewTopRight = {"x":w,"y":h-secViewHeight};
-	secViewBottomLeft = {"x":0,"y":h};
-	secViewBottomRight = {"x":w,"y":h};
+	firstViewBottomLeft = {"x":0,"y":h-secViewHeight-thirdViewHeight};
+	firstViewBottomRight = {"x":w,"y":h-secViewHeight-thirdViewHeight};
+
+	secViewTopLeft = firstViewBottomLeft;
+	secViewTopRight = firstViewBottomRight;
+	secViewBottomLeft = {"x":0,"y":h-thirdViewHeight};
+	secViewBottomRight = {"x":w,"y":h-thirdViewHeight};
+
+	thirdViewTopLeft = secViewBottomLeft;
+	thirdViewTopRight = secViewBottomRight;
+	thirdViewBottomLeft = {"x":0,"y":h};
+	thirdViewBottomRight = {"x":w,"y":h};
 
 
 	var force = d3.layout.force()
 	.size([w, h])
-	.linkDistance(80)
+	.linkDistance(180)
 	.linkStrength(1)
-	.charge(-800)
+	.charge(-1000)
 	
-	.friction(0.5)
+//	.friction(0.1)
 	
 	.gravity(0.1);
 
@@ -222,8 +229,10 @@ function NewGraph(el) {
 	.attr("height", h);
 
 	vis.append("svg:rect")
+//	.attr("x",firstViewTopLeft.x)
+	.attr("y",firstViewTopLeft.y)
     .attr("width", w)
-    .attr("height", firstViewBottomLeft.y)
+    .attr("height",h)
     .style("stroke", "#000");
 	
 //	Per-type markers, as they don't inherit styles.
@@ -273,6 +282,16 @@ function NewGraph(el) {
 	}
 	
 	
+	
+	function add(from,to){
+
+		
+		var arr = new Array();
+		arr.push(from);
+		addAll(arr, to);
+	}
+	
+	
 	this.getVisibleLinks = function getVisibleLinks(visibleLinks,visibleNodes){
 		var visibleNodeIds = [];
 		
@@ -283,10 +302,8 @@ function NewGraph(el) {
 		
 		for(var i = 0; i<links.length; i++){				
 			var link = links[i];
-			if(this.activeNode && link.source.id == this.activeNode.id){
-				continue;
-			}
-			if(visibleNodeIds.indexOf(link.source.id)>-1 && visibleNodeIds.indexOf(link.target.id)>-1){
+			var reverseLink = this.getLinkBySrcTrgId(link.target.id, link.source.id);
+			if(reverseLink && visibleLinks.indexOf(reverseLink)<0){
 				if(visibleLinks.indexOf(link)<0){
 					visibleLinks.push(link);
 				}
@@ -316,44 +333,31 @@ function NewGraph(el) {
 		var activeNodes = [];
 		
 		var unlinkedNodes = [];
-		for(var i = 0; i<nodes.length; i++){
-			if(nodeIncomingMap[nodes[i].id]>1 ){
-				var arr = [];
-				arr.push(nodes[i]);
-				addAll(arr, activeNodes);
-				var poiFollowers = this.getLinksByTrgId(nodes[i].id);
-				for(var k in poiFollowers){
-					var f = poiFollowers[k].source;
-					
-					if(unlinkedNodes.indexOf(f) >-1){
-						unlinkedNodes.splice(unlinkedNodes.indexOf(f),1);						
-					}
-					
-					var tempArr = [];
-					tempArr.push(f);
-					addAll(tempArr, activeNodes);
-					
-				}
-				
-			}else if(this.activeNode && nodesHaveARelation(nodes[i].id, this.activeNode.id)){
-
-				var tempArr = [];
-				if(activeNodes.indexOf(nodes[i])<0){
-					tempArr.push(nodes[i]);
-					addAll(tempArr, unlinkedNodes);
-					
-				}
-			}
-		}
+		
+//		for(var i in nodes){
+//			if(nodeIncomingMap[nodes[i].id]>this.maxIncoming){
+//
+//				this.maxIncoming = nodeIncomingMap[nodes[i].id];
+//			}
+//		}
+//		for(var i = 0; i<nodes.length; i++){
+//			var nodelinks = this.getLinksBySrcId(nodes[i].id);
+//			for(var j in nodelinks){
+//				var nodelink = nodelinks[j];
+//				if(this.getLinkBySrcTrgId(nodelink.target.id, nodelink.source.id)){
+//					add(nodes[i],activeNodes);
+//				}
+//			}
+//		}
 
 
-		addAll(pathNodes, activeNodes);
+		addAll(nodes, activeNodes);
 		//addAll(cursors, visibleNodes);
 		addAll(activeNodes, visibleNodes);
 		this.getVisibleLinks(visibleLinks,visibleNodes);
 		
-		addAll(unlinkedNodes, activeNodes);
-		addAll(activeNodes, visibleNodes);
+//		addAll(unlinkedNodes.slice(0,20), activeNodes);
+//		addAll(activeNodes, visibleNodes);
 	
 		
 //
@@ -369,6 +373,8 @@ function NewGraph(el) {
 
 //		force.nodes(visibleNodes);
 //		force.links(visibleLinks);
+		
+		var thisObj = this;
 		var images = circleGroup.selectAll("image")
 		.data(activeNodes, function(d) { return d.id;});
 
@@ -377,15 +383,61 @@ function NewGraph(el) {
 		
 		var imageHeight = 32;
 		var imageWidth = 32;
+		
 		imagesEnter.append("image")
-	    .attr("xlink:href", function(d) { return d.pic_url;})
+	    .attr("xlink:href", function(d) { return d.profile_image_url_https;})
 	    .attr("x", -16)
 	    .attr("y", -16)
 	    .attr("width", imageWidth)
 	    .attr("height", imageHeight)
-//		.on("click",  function(d) { expandNode(d);})
+		.on("click",  function(ele) {
+			
+			if(ele.id == clickedImageId){
+				circleGroup.selectAll("image").each(function(d,i){
+					this.style.visibility = "visible";
+					this.style.display = "block";
+				
+				});
+				pathGroup.selectAll("path").each(function(d,i){
+					this.style.visibility = "visible";
+					this.style.display = "block";
+				
+				});
+				clickedImageId = -1;
+			}else{
+				
+				var tempVisibleArr = new Array();
+			
+				clickedImageId = ele.id;
+				circleGroup.selectAll("image").each(function(d,i){
+					if(ele.id == d.id || nodesHaveARelation(ele.id, d.id) || thisObj.activeNode && d.id == thisObj.activeNode.id){
+						this.style.visibility = "visible";
+						this.style.display = "block";
+						tempVisibleArr.push(d);
+					}else{
+						this.style.visibility = "hidden";
+						this.style.display = "none";
+					}
+				});
+				pathGroup.selectAll(".link").each(function(link,i){
+					var srcNode = link.source;
+					var trgNode = link.target;
+					
+					if(tempVisibleArr.indexOf(srcNode) >-1 && tempVisibleArr.indexOf(trgNode) >-1){
+						this.style.visibility = "visible";
+						this.style.display = "block";
+					}else{
+						this.style.visibility = "hidden";
+						this.style.display = "none";
+					}
+				});
+			}
+		
+		})
 		.on("mouseover",function(ele){
+			
 			vis.selectAll(".text"+ele.id).style("display","block");
+			
 		})
 		.on("mouseout",function(ele){
 			vis.selectAll(".text"+ele.id).style("display","none");
@@ -399,7 +451,7 @@ function NewGraph(el) {
 		pth.exit().remove();
 		pth.enter().append("svg:path")
 		.attr("class", function(d) { return "link " + "suit"; })
-		.attr("marker-end", function(d) { return "url(#" +  "suit" + ")"; });
+		//.attr("marker-end", function(d) { return "url(#" +  "suit" + ")"; });
 
 
 
@@ -537,15 +589,10 @@ function NewGraph(el) {
 			});
 
 			images.attr("transform", function(d) {
-				if(unlinkedNodes.indexOf(d)>-1){
-
-					d.x = Math.max(imageWidth/2, Math.min(w - imageWidth/2, d.x));
-					d.y = Math.max(firstViewBottomLeft.y+ imageHeight/2, Math.min(secViewBottomLeft.y - imageHeight/2, d.y)); 
-				}else{
-					d.x = Math.max(imageWidth/2, Math.min(w - imageWidth/2, d.x));
-					d.y = Math.max(imageHeight/2, Math.min(firstViewBottomLeft.y - imageHeight/2, d.y)); 
+				d.x = Math.max(imageWidth/2, Math.min(w - imageWidth/2, d.x));
+				d.y = Math.max(imageHeight/2, Math.min(thirdViewBottomLeft.y - imageHeight/2, d.y)); 
 					
-				}
+				
 
 				return "translate(" + d.x + "," + d.y + ")";
 			});

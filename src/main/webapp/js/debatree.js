@@ -1,14 +1,104 @@
 
 
-function getUserAsRoot(userName){
-	tw.showUserByName(userName, function(user) {
-		user.pic_url = user.profile_image_url_https;
-		 graph.addNode(user,true);
-		 expandNode(user);
-  	});
-	
-}       
+function getUserGraph(){
+	var userName = document.getElementById('usernameinput').value;
+	$.ajax({
 
+		url : "userfriend/?user="+userName,
+		dataType : "json",
+		success :  function(data)
+		{
+
+						
+			var srcIdList = new Array();
+			var trgIdList = new Array();
+			for ( var i = 0; i < data.users.length; i++) {
+				
+				var newNode = data.users[i];
+				graph.addNode(newNode);
+
+			}
+
+			for ( var key in data.links) {
+				for ( var i in data.links[key]) {
+					srcIdList.push(parseInt(key));
+					trgIdList.push(data.links[key][i]);
+				}
+
+			}
+
+			graph.addLinks(srcIdList, trgIdList);
+			
+			graph.update();
+		},
+		error : function(er)
+		{
+			expanding = false;
+			alert("Bisey oldu ya da kullanicinin bilgileri gizli");
+		},
+
+	});
+}
+
+
+
+var started = false;
+var paused = false;
+function getButtonValue(){
+	if(!started) {
+		return 'Start';
+	}else if(paused){
+		return 'Continue';
+	}
+	else {
+		return 'Pause';
+	}
+}
+
+function toggle(){
+	if(!started){
+		clearGraph();
+		paused = false;
+		started = true;
+		getUserAsRoot(document.getElementById('usernameinput').value);		
+		
+	}else if(paused){
+		getNextFriendList();
+		paused = false;
+	}else{
+		paused = true;
+	}
+	document.getElementById('operateBtnId').value = getButtonValue();
+	
+}
+function clearGraph(){
+	started = false;
+	paused = false;
+	document.getElementById('operateBtnId').value = getButtonValue();
+	graph.clear();
+}
+
+var userMap = {};
+function getUserAsRoot(userName){
+	
+	tw.showUserByName(userName, function(user) {
+		 graph.addNode(user,true);
+		 userMap[user.id] = user;
+		 totalFriendCount = user.friends_count;
+		 expandNode(user);
+		 
+		 tw.getFriendListById(user.id,function(users){
+			 for(var i in users){
+				 var u = users[i];
+				 userMap[u.id] = u;
+				 
+			 }
+		 });
+  	});
+}       
+function startRetrieving(){
+	
+}
 var expanding = false;
 
 var userFriendListCursor = {};
@@ -57,58 +147,55 @@ function showErrorMessage(msg){
 function hideErrorMessage(){
 	$("#loadingDiv").html();
 }
+
 function expandNode(user, doNotSetActive){
 	
 	
 	if(!expanding){
 		showLoading();
 		expanding = true;
-		if(graph.activeNode && graph.activeNode.id == user.id){
-			graph.activeNode = null;
+	
+		if(!doNotSetActive){
+			graph.addToPathNodes(user);				
+		}
 
-			expanding = false;
+		if(!user.next_cursor){
+			user.next_cursor = "-1";
+		}
+		if(user.next_cursor == "0"){
 			graph.update();
 			hideLoading();
-		}else{
-			if(!doNotSetActive){
-				graph.addToPathNodes(user);				
-			}
+			expanding = false;
+		}else{	
+			$.ajax({
 
-			if(!user.next_cursor){
-				user.next_cursor = "-1";
-			}
-			if(user.next_cursor == "0"){
-				graph.update();
-				hideLoading();
-				expanding = false;
-			}else{	
-				$.ajax({
-
-				url : "userfriend/?user="+user.screen_name+"&cursor="+user.next_cursor,
-				dataType : "json",
-				success :  function(data)
-				{
-					
-					handleResponse(data,user);
-				},
-				error : function(er)
-				{
-					expanding = false;
-					hideLoading();
-					showErrorMessage("Friends of "+user.screen_name+" are hidden...");
-				},
-
-			});
+			url : "userfriend/?user="+user.screen_name+"&cursor="+user.next_cursor,
+			dataType : "json",
+			success :  function(data)
+			{
 				
-			}
-		
+				handleResponse(data,user);
+			},
+			error : function(er)
+			{
+				expanding = false;
+				hideLoading();
+				showErrorMessage("Friends of "+user.screen_name+" are hidden...");
+			},
+
+		});
+			
 		}
+	
+		
 	
 		
 			
 
 	}
 }  
+var retrieved = 0;
+var total = -1;
 
 function handleResponse(data, user){
 
@@ -118,11 +205,20 @@ function handleResponse(data, user){
 	for(var i=0; i<data.friends.length; i++){
 		var ele = data.friends [i];
 
+		if(userMap[ele.id]){
+			data.friends.splice(i,1,userMap[ele.id]);
+		}
+		
 		srcIdList.push(user.id);
 		trgIdList.push(ele.id);
 
 	}
+	
+	//data.friends'i userMap'ten bulup replace et...
 
+	graph.addNode(data.user);
+	
+	
 	graph.addNodes(data.friends);
 	graph.addLinks(srcIdList, trgIdList);
 	
@@ -143,7 +239,6 @@ function handleResponse(data, user){
 		user.next_cursor = "0";
 	}
 	
-	graph.update();
 	expanding = false;
 
 	if(graph.activeNode){
@@ -154,38 +249,96 @@ function handleResponse(data, user){
 				var friendNode = graph.getNodeById(friend.id);
 
 				if (friendNode.next_cursor != "0") {
-					usersToExpand.push(friendNode);
+					usersToExpand.splice(0, 0, friendNode);
 				}
 			}
 			if(user.next_cursor!="0"){
-				usersToExpand.push(user);
+				usersToExpand.splice(0, 0, user);
 			}
 		}
-
-		if(graph.activeNode.next_cursor=="0"){
-			var friendLinks = graph.getLinksBySrcId(graph.activeNode.id);
-			for(var i in friendLinks){
-				var friend = friendLinks[i].target;
-				if(friend.next_cursor!="0"){
-					usersToExpand.push(friend);	
-				}
-				
-			}
-		}
-
 	}
 	
-	var userToExpand = usersToExpand[0];
+	if(started && !paused){
+
+		window.setTimeout(getNextFriendList,300);
+	}
+	refreshSlider();
+	
+	
+	var unknownFriendsCountExists = false; 
+	for(var i in usersToExpand){
+		if(usersToExpand[i].friends_count < 0){
+			
+			var us = userMap[usersToExpand[i].id];
+			if(us && us.friends_count>-1){
+				graph.addNode(us);
+				usersToExpand[i] = us;
+			}else{
+
+				unknownFriendsCountExists = true;
+				break;
+			}
+		}
+	}
+
+	retrieved = retrieved + data.friends.length;
+	
+	if(!unknownFriendsCountExists){
+		
+		if(total<0){
+			total = 0;
+			
+			for(var i in usersToExpand){
+				total = total + usersToExpand[i].friends_count;
+			}
+
+		} 
+		
+		$(function() {
+		    $("#progressbar").progressbar({ value: 100 * Math.max(0,(finishedFriendCount/totalFriendCount)) });
+		});
+	}
+}
+function refreshSlider(){
+
+	$("#sliderId").slider("option", "max", graph.maxIncoming);
+}
+
+function userComparatorByFriendCount(user1, user2){
+	return user1.friends_count-user2.friends_count;
+}
+
+var finishedFriendCount = 0;
+var totalFriendCount = 0;
+
+
+var lastProcessed;
+function getNextFriendList(){
+	usersToExpand.sort(userComparatorByFriendCount);
+	
+	var index = parseInt(Math.random()*5);
+	index = Math.min(usersToExpand.length-1, index);
+	var userToExpand = usersToExpand[index];
+	
 	if(userToExpand){
-		usersToExpand.splice(0,1);
+		usersToExpand.splice(index,1);
 		if(userToExpand.next_cursor && userToExpand.next_cursor!="0"){
 
 			expandCursor(graph.getCursorByUserId(userToExpand.id));
-		}else{
+			usersToExpand.push(userToExpand);
+		}else if(!userToExpand.next_cursor){
 			expandNode(userToExpand,true);
-			
-		}
-	}
+			usersToExpand.push(userToExpand);
+		}else{
 
+			graph.update();
+			finishedFriendCount++;
+			window.setTimeout(getNextFriendList,300);
+		}
+	}else{
+		$(function() {
+		    $("#progressbar").progressbar({ value:100 });
+		});
+	}
 }
 var usersToExpand = new Array();

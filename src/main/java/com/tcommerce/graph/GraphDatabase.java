@@ -107,26 +107,47 @@ public class GraphDatabase {
 
 	}
 
-	private void addFriendshipNoTx(UserJSONImpl user, UserJSONImpl friend){
-		Index<Node> tweetsIndex = graphDatabase.index().forNodes(USER_ID);
+	private void addFriendshipNoTx(long src, long trg){
+		if(src<0 || trg < 0){
+			return;
+		}
+		Index<Node> usersIndex = graphDatabase.index().forNodes(USER_ID);
 
-		Node node1 = graphDatabase.createNode();		
-		user.setDataToGDBNode(node1);
+		Node node1 = graphDatabase.createNode();
+//		user.setDataToGDBNode(node1);
 		
 		
-		Node existing = tweetsIndex.putIfAbsent(node1, USER_ID, user.getId());			
+		Node existing = usersIndex.putIfAbsent(node1, USER_ID, src);			
 		if (existing != null) {
 			node1 = existing;
 		}
+		
+		node1.setProperty(USER_ID, src);
+		
 		Node node2 = graphDatabase.createNode();
-		friend.setDataToGDBNode(node2);	
+//		friend.setDataToGDBNode(node2);	
 
-		Node existing2 = tweetsIndex.putIfAbsent(node2, USER_ID, friend.getId());
+		Node existing2 = usersIndex.putIfAbsent(node2, USER_ID, trg);
 		if (existing2 != null) {
 			node2 = existing2;
 		}
 
-		node1.createRelationshipTo(node2, RelTypes.FOLLOWS);
+		node2.setProperty(USER_ID, trg);
+		
+		Iterable<Relationship> a = node1.getRelationships(RelTypes.FOLLOWS, Direction.OUTGOING);
+		
+		boolean found = false;
+		for(Relationship rel : a){
+			if(rel.getEndNode().getProperty(USER_ID).equals(trg)){
+				found = true;
+				break;
+			}
+		}
+		
+		if(!found){
+			node1.createRelationshipTo(node2, RelTypes.FOLLOWS);
+			
+		}
 
 	}
 	private void addOrUpdateNodeNoTx(UserJSONImpl user){
@@ -141,19 +162,19 @@ public class GraphDatabase {
 
 	}
 	
-	public  void addFriendship(UserJSONImpl user, UserJSONImpl friend) {
-		ArrayList<UserJSONImpl> friends = new ArrayList<UserJSONImpl>();
-		friends.add(friend);
-		addFriendships(user, friends);
+	public  void addFriendship(long src, long trg) {
+		ArrayList<Long> trgs = new ArrayList<Long>();
+		trgs.add(trg);
+		addFriendships(src, trgs);
 
 
 	}
-	public  void addFriendships(UserJSONImpl user, List<UserJSONImpl> friends) {
+	public  void addFriendships(long src, List<Long> trgs) {
 		Transaction tx = graphDatabase.beginTx();
 		try {
-			for(UserJSONImpl friend : friends){
+			for(Long trg : trgs){
 
-				addFriendshipNoTx(user, friend);
+				addFriendshipNoTx(src, trg);
 			}
 			
 			tx.success();
@@ -180,8 +201,8 @@ public class GraphDatabase {
 //			tx.finish();
 //		}
 	}
-	public  List<UserJSONImpl> getFriends(long srcId) {
-		ArrayList<UserJSONImpl> friends = new ArrayList<UserJSONImpl>();
+	public  List<Long> getFriends(long srcId) {
+		ArrayList<Long> friends = new ArrayList<Long>();
 		try {
 
 			Index<Node> usersIndex = graphDatabase.index().forNodes(USER_ID);
@@ -192,9 +213,9 @@ public class GraphDatabase {
 
 				Iterable<Relationship> nodes = expander.expand(node);
 				for (Relationship rel : nodes) {
-					UserJSONImpl user = new UserJSONImpl();
-					user.getDataFromGDBNode(rel.getEndNode());
-					friends.add(user);
+//					UserJSONImpl user = new UserJSONImpl();
+//					user.getDataFromGDBNode(rel.getEndNode());
+					friends.add((Long)rel.getEndNode().getProperty(USER_ID));
 
 				}
 

@@ -64,7 +64,7 @@ public class AnnouncerMgrImpl {
 	public static final String LOAD_ANNOUNCER = "select * from systemtwitteruser";
 	private static String ADD_ANNOUNCER = " insert into systemtwitteruser(id,screenName,consumerKey,consumerSecret,accessToken,accessTokenSecret, name, surname, email, password, maxFamousAccount2Follow,authtoken,sesid, description, url, longName, location, pictureUrl ) values "
 			+ " (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, cast( rand() * 7 + 3 as unsigned), ?, ?, ?, ?, ?, ?, ?) ";
-	private static String UPDATE_ANNOUNCER = " update systemtwitteruser set consumerKey = ?,consumerSecret = ?,accessToken = ?,accessTokenSecret = ?,suspended=?,training=?,authtoken=?,sesid=?, description = ?, url = ?, longName = ?, location = ?, pictureUrl = ?, screenName = ? where id = ?";
+	private static String UPDATE_ANNOUNCER = " update systemtwitteruser set consumerKey = ?,consumerSecret = ?,accessToken = ?,accessTokenSecret = ?,suspended=?,training=?,authtoken=?,sesid=?, description = ?, url = ?, longName = ?, location = ?, pictureUrl = ?, screenName = ?, resetTimeInSecs = ? where id = ?";
 	private static String DELETE_ANNOUNCER = " delete from systemtwitteruser where id = ? ";
 
 	public static final String ANNOUNCER_COUNT = " select count(*) from systemtwitteruser ";
@@ -174,11 +174,12 @@ public class AnnouncerMgrImpl {
 			ps.setString(10, "");
 			ps.setString(11, "");
 			ps.setString(12, announcer.getLocation());
-			
+
 			ps.setString(13, announcer.getPictureUrl());
 			ps.setString(14, announcer.getScreenName());
+			ps.setInt(15, announcer.getResetTimeInSecs());
 			
-			ps.setLong(15, announcer.getId());
+			ps.setLong(16, announcer.getId());
 			ps.executeUpdate();
 			logger.debug(DBConstants.QUERY_EXECUTION_SUCC + ps.toString());
 		} catch (SQLException ex) {
@@ -364,7 +365,7 @@ public class AnnouncerMgrImpl {
 		}
 	}
 
-	
+
 	public Announcer getAnnouncerByScreenName(String screenName) {
 		Announcer announcer = null;
 		Connection connection = null;
@@ -374,6 +375,29 @@ public class AnnouncerMgrImpl {
 			ps = connection
 					.prepareStatement("select * from systemtwitteruser where screenName = ?");
 			ps.setString(1, screenName);
+			ResultSet rs = ps.executeQuery();
+			if (rs.next()) {
+				announcer = new Announcer();
+				announcer.getDataFromResultSet(rs);
+			}
+			logger.debug(DBConstants.QUERY_EXECUTION_SUCC + ps.toString());
+		} catch (SQLException ex) {
+			logger.error(DBConstants.QUERY_EXECUTION_FAIL + ps.toString(), ex);
+		} finally {
+			dbMgr.closeResources(connection, ps, null);
+		}
+		return announcer;
+	}
+
+	public Announcer getAnnouncerByAccessToken(String accessToken) {
+		Announcer announcer = null;
+		Connection connection = null;
+		PreparedStatement ps = null;
+		try {
+			connection = dbMgr.getConnection();
+			ps = connection
+					.prepareStatement("select * from systemtwitteruser where accessToken = ?");
+			ps.setString(1, accessToken);
 			ResultSet rs = ps.executeQuery();
 			if (rs.next()) {
 				announcer = new Announcer();

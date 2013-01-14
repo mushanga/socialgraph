@@ -7,14 +7,14 @@ import javax.persistence.Id;
 @Entity
 public class User {
 
-	@Id long id;
-	@Column(name="screen_name", unique=true) String screenName;
+	@Id long id = -1;
+	@Column(name="screen_name", unique=true) String screenName = null;
 	
 
 	@Column(name="pictureurl")
-	private  String picUrl;
-	@Column(name="friends_count")  int friendsCount;
-	@Column(name="followers_count")  int followersCount;
+	private  String picUrl = null;
+	@Column(name="friends_count")  int friendsCount = -1;
+	@Column(name="followers_count")  int followersCount = -1;
 	public long getId() {
 		return id;
 	}
@@ -47,11 +47,27 @@ public class User {
 	}
 	
 	public void retrieveValuesFrom(User user){
-		this.setFollowersCount(user.getFollowersCount());
-		this.setFriendsCount(user.getFriendsCount());
-		this.setId(user.getId());
-		this.setPicUrl(user.getPicUrl());
-		this.setScreenName(user.getScreenName());
+		if(user.getFriendsCount()>-1){
+			this.setFriendsCount(user.getFriendsCount());
+			
+		}	
+		if(user.getFollowersCount()>-1){
+			this.setFollowersCount(user.getFollowersCount());
+			
+		}
+		if(user.getId()>-1){
+			this.setId(user.getId());
+			
+		}	
+		if(user.getPicUrl()!=null){
+			this.setPicUrl(user.getPicUrl());
+		}
+
+		if(user.getScreenName()!=null){
+			this.setScreenName(user.getScreenName());
+		}
+	
+		
 	}
 	
 }

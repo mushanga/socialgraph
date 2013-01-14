@@ -52,6 +52,7 @@ public class Announcer implements DataObjectIF {
 	Util util = Util.getInstance();
 	private static Logger logger = Logger.getLogger(Announcer.class);
 	long id;
+	private int resetTimeInSecs;
 	String screenName;
 	String consumerKey = null;
 	String consumerSecret = null;
@@ -112,6 +113,7 @@ public class Announcer implements DataObjectIF {
 		this.setDescription(rs.getString("description"));
 		this.setLocation(rs.getString("location"));
 		this.setUrl(rs.getString("url"));
+		this.setResetTimeInSecs(rs.getInt("resetTimeInSecs"));
 
 		try {
 			this.setCreationTime(rs.getTimestamp("creationtime").getTime());
@@ -519,6 +521,14 @@ public class Announcer implements DataObjectIF {
 
 	public void setFollowingList(List<Announcer> followingList) {
 		this.followingList = followingList;
+	}
+
+	public int getResetTimeInSecs() {
+		return resetTimeInSecs;
+	}
+
+	public void setResetTimeInSecs(int resetTimeInSecs) {
+		this.resetTimeInSecs = resetTimeInSecs;
 	}
 
 }

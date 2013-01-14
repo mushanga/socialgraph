@@ -8,8 +8,6 @@
 <%@page import="com.google.gson.Gson"%>
 <%@page import="com.debatree.json.UserJSONImpl"%>
 <%@page import="com.debatree.twitter.TwitterClient"%>
-
-<%@page import="com.debatree.task.FindDebateTask"%>
 <%
 response.setContentType("application/json");
 String userName = request.getParameter("user");
@@ -27,7 +25,7 @@ userId = Long.valueOf(request.getParameter("user_id"));
 
 		userName = tc.getUser(userId).getScreenName();
 	}
-	String json  = tc.getFriendsAsJSON(userName,cursor);
+	String json  = tc.getGraphForUser(userName).toJson();
 
 %>
 <%=json%>

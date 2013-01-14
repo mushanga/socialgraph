@@ -24,8 +24,11 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.protocol.HTTP;
 import org.apache.log4j.Logger;
 
+import twitter4j.IDs;
 import twitter4j.Twitter;
+import twitter4j.TwitterException;
 import twitter4j.TwitterFactory;
+import twitter4j.auth.AccessToken;
 
 import com.amazonbird.announce.AnnouncerMgrImpl;
 import com.amazonbird.db.base.DBMgrImpl;
@@ -36,6 +39,7 @@ import com.debatree.json.FriendListJSONImpl;
 import com.debatree.json.IDsJSONImpl;
 import com.debatree.json.TweetJSONImpl;
 import com.debatree.json.UserJSONImpl;
+import com.debatree.main.GraphState;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
@@ -52,8 +56,21 @@ public class TwitterClient {
 
 	private static HashMap<String, List<UserJSONImpl>> cursorUserListMap = new HashMap<String, List<UserJSONImpl>>();
 	private static HashMap<String, String> cursorNextCursorMap = new HashMap<String, String>();
-	
+
 	private static Logger logger = Logger.getLogger(TwitterClient.class);
+
+	public TwitterClient(long userId) throws DebatreeException {
+
+		announcer = announcerMgr.getAnnouncer(userId);
+
+		twitter.setOAuthConsumer(announcer.getConsumerKey(), announcer.getConsumerSecret());
+		twitter.setOAuthAccessToken(new AccessToken(announcer.getAccessToken(), announcer.getAccessTokenSecret()));
+
+		if (announcer == null) {
+			throw new DebatreeException("No such a user with id: " + userId);
+		}
+
+	}
 
 	private void loadCredentials() throws DebatreeException {
 		try {
@@ -131,16 +148,6 @@ public class TwitterClient {
 
 	}
 
-	public TwitterClient(long userId) throws DebatreeException {
-
-		announcer = announcerMgr.getAnnouncer(userId);
-
-		if (announcer == null) {
-			throw new DebatreeException("No such a user with id: " + userId);
-		}
-
-	}
-
 	public void follow(long userId) throws DebatreeException {
 
 		ArrayList<BasicNameValuePair> nvps = new ArrayList<BasicNameValuePair>();
@@ -200,87 +207,53 @@ public class TwitterClient {
 	}
 
 	public List<Long> getFollowingsIDs(long id, int cursor) throws DebatreeException {
-		ArrayList<BasicNameValuePair> nvps = new ArrayList<BasicNameValuePair>();
-		nvps.add(new BasicNameValuePair("id", String.valueOf(id)));
-		nvps.add(new BasicNameValuePair("cursor", String.valueOf(cursor)));
-		String response = get("https://api.twitter.com/1/friends/ids.json", nvps);
+		List<Long> idsList = new ArrayList<Long>();
+		IDsJSONImpl ids = new IDsJSONImpl();
+		try {
+			ArrayList<BasicNameValuePair> nvps = new ArrayList<BasicNameValuePair>();
+			nvps.add(new BasicNameValuePair("id", String.valueOf(id)));
+			nvps.add(new BasicNameValuePair("cursor", String.valueOf(cursor)));
+			String response = get("https://api.twitter.com/1/friends/ids.json", nvps);
 
-		IDsJSONImpl ids = (IDsJSONImpl) Util.convertJSONToObj(response, IDsJSONImpl.class);
-		return ids.getIdList();
+			ids = (IDsJSONImpl) Util.convertJSONToObj(response, IDsJSONImpl.class);
+			idsList = ids.getIdList();
+		} catch (Exception e) {
+			logger.info(e.getMessage());
 
-	}
-
-	public List<UserJSONImpl> getFriendsFromTwitter(String userName) throws DebatreeException {
-		UserJSONImpl user = getUser(userName);
-		List<UserJSONImpl> friends = GraphDatabase.getInstance().getFriends(user.getId());
-		if (!util.listIsValid(friends)) {
-			String response = get("https://twitter.com/" + user.getScreenName() + "/following");
-
-			List<String> strList = Util.parse(response, "data-user-id=\"", "\"", null, null, "<div class=\"content\">");
-
-			String dataCursor = null;
-			try {
-				dataCursor = Util.parse(response, "data-cursor=\"", "\"", null, null);
-			} catch (Exception ex) {
-
-			}
-			while (util.stringIsValid(dataCursor)) {
-				ArrayList<BasicNameValuePair> nvps = new ArrayList<BasicNameValuePair>();
-				nvps.add(new BasicNameValuePair("cursor", dataCursor));
-				nvps.add(new BasicNameValuePair("is_forward", "true"));
-				response = get("https://twitter.com/" + user.getScreenName() + "/following/users", nvps);
-				response = response.replace("\\", "");
-				List<String> tempList = Util.parse(response, "data-user-id=\"", "\"", null, null, "data-name");
-				strList.addAll(tempList);
-				dataCursor = null;
-				try {
-					dataCursor = Util.parse(response, "\"cursor\":\"", "\"", null, null);
-				} catch (Exception ex) {
-
-				}
-			}
-
-			strList.remove(String.valueOf(announcer.getId()));
-
-			ArrayList<Long> idList = new ArrayList<Long>();
-			for (String str : strList) {
-
-				idList.add(Long.valueOf(str));
-			}
-
-			friends = getUsers(idList);
-
-			GraphDatabase.getInstance().addFriendships(user, friends);
-
-			System.out.println(friends.size() + " friends of " + user.getScreenName() + " added to the graph.");
-			friends = GraphDatabase.getInstance().getFriends(user.getId());
 		}
+		return idsList;
 
-		return friends;
 	}
-	public class TwitterCrawler implements Runnable{
+
+	public class TwitterCrawler implements Runnable {
 		private UserJSONImpl user;
+
 		public TwitterCrawler(UserJSONImpl user, String dataCursor) {
 			super();
 			this.user = user;
 			this.dataCursor = dataCursor;
 		}
+
 		String dataCursor;
+
 		@Override
 		public void run() {
-			
-			try {
-				saveFriends(user, dataCursor);
-			} catch (DebatreeException e) {
-				logger.error(e.getMessage(), e);
-			}
+			while (Util.stringIsValid(dataCursor) && !cursorUserListMap.containsKey(user.getScreenName() + dataCursor)) {
 
-		}	
+				try {
+
+					FriendListJSONImpl a = saveFriends(user, dataCursor);
+					dataCursor = a.getNextCursor();
+				} catch (DebatreeException e) {
+					logger.error(e.getMessage(), e);
+				}
+			}
+		}
 	}
-	
-	private FriendListJSONImpl saveFriends(UserJSONImpl user, String dataCursor) throws DebatreeException{
+
+	private FriendListJSONImpl saveFriends(UserJSONImpl user, String dataCursor) throws DebatreeException {
 		FriendListJSONImpl friendListJSON = null;
-		
+
 		String nextCursor = "-1";
 		List<UserJSONImpl> friends = new ArrayList<UserJSONImpl>();
 
@@ -297,10 +270,9 @@ public class TwitterClient {
 		List<String> idList = Util.parse(response, "data-user-id=\"", "\"", null, null, "data-name");
 		List<String> screenNameList = Util.parse(response, "data-screen-name=\"", "\"", null, null, "data-item-type");
 		List<String> imgList = Util.parse(response, "src=\"", "\"", null, null, "img class");
-		
+
 		ArrayList<UserJSONImpl> usList = new ArrayList<UserJSONImpl>();
-		for(int i=0; i<idList.size(); i++){
-			
+		for (int i = 0; i < idList.size(); i++) {
 
 			UserJSONImpl newUser = new UserJSONImpl();
 			newUser.setScreenName(screenNameList.get(i));
@@ -316,52 +288,227 @@ public class TwitterClient {
 		}
 
 		friends = usList;
-//		friends = getUsers(idList);
+		// friends = getUsers(idList);
 
-		GraphDatabase.getInstance().addFriendships(user, friends);
+		// GraphDatabase.getInstance().addFriendships(user, friends);
 		logger.info(friends.size() + " friends of " + user.getScreenName() + " added to the graph.");
-		friendListJSON = new FriendListJSONImpl(friends, nextCursor);
-		
+		friendListJSON = new FriendListJSONImpl(nextCursor, user, friends);
 
-		if(!dataCursor.equals("-1")){
-			cursorNextCursorMap.put(dataCursor, nextCursor);
+		cursorNextCursorMap.put(user.getScreenName() + dataCursor, nextCursor);
 
-			cursorUserListMap.put(dataCursor, friends);
-		}
-		logger.info("dataCursor: "+dataCursor+", "+"nextCursor: "+nextCursor);
+		cursorUserListMap.put(user.getScreenName() + dataCursor, friends);
+
+		logger.info("dataCursor: " + dataCursor + ", " + "nextCursor: " + nextCursor);
 		return friendListJSON;
 	}
-	
+
+	// public FriendListJSONImpl getBidirectionalLinks(String userName) throws
+	// DebatreeException {
+	// UserJSONImpl user = getUser(userName,true);
+	// FriendListJSONImpl friendListJSON = null;
+	// String nextCursor = "-1";
+	//
+	// if (cursorUserListMap.containsKey(userName+dataCursor)) {
+	// List<UserJSONImpl> friends = new ArrayList<UserJSONImpl>();
+	// List<UserJSONImpl> friendList =
+	// cursorUserListMap.get(userName+dataCursor);
+	// for(int i = 0; i<friendList.size(); i++){
+	// UserJSONImpl u = friendList.get(i);
+	// UserJSONImpl dbu = getUser(u.getScreenName(), false);
+	// friendList.set(i, dbu);
+	//
+	// }
+	//
+	// friends.addAll(friendList);
+	// nextCursor= cursorNextCursorMap.get(userName+dataCursor);
+	// friendListJSON = new FriendListJSONImpl(nextCursor, user, friends);
+	// } else {
+	// friendListJSON = saveFriends(user, dataCursor);
+	// }
+	// Thread nextCursorObtainer = new Thread(new
+	// TwitterCrawler(user,friendListJSON.getNextCursor()));
+	// nextCursorObtainer.start();
+	// return friendListJSON;
+	// }
+
+	public class GraphExpander extends Thread {
+
+		String userName;
+		int secsUntilReset;
+		int resetTimeInSecs;
+
+		public GraphExpander(String userName, int secs, int resetTimeInSecs) {
+			super();
+			this.secsUntilReset = secs;
+			this.userName = userName;
+			this.resetTimeInSecs = resetTimeInSecs;
+		}
+
+		@Override
+		public void run() {
+			super.run();
+			try {
+				logger.info("Sleeping for " + secsUntilReset + " seconds...");
+				try {
+					Thread.sleep(secsUntilReset * 1000);
+				} catch (InterruptedException e) {
+					logger.error(e.getMessage(), e);
+				}
+
+				searchesInAction.remove(userName.toLowerCase());
+				logger.info("Continuing...");
+				setFriendsOfFriendsGraph(userName);
+			} catch (DebatreeException e) {
+				logger.error(e.getMessage(), e);
+			}
+
+		}
+	}
+
+	private static ArrayList<String> searchesInAction = new ArrayList<String>();
+
+	public void setFriendsOfFriendsGraph(String userName) throws DebatreeException {
+
+		if (searchesInAction.contains(userName.toLowerCase())) {
+			return;
+		} else {
+			searchesInAction.add(userName.toLowerCase());
+		}
+		UserJSONImpl user = getUser(userName, true);
+
+		List<Long> friendsIdList = gdb.getFriends(user.getId());
+		if (!util.listIsValid(friendsIdList)) {
+			friendsIdList = new ArrayList<Long>();
+			try {
+				IDs a = twitter.getFriendsIDs(user.getId(), -1);
+
+				for (Long friendId : a.getIDs()) {
+					friendsIdList.add(friendId);
+				}
+
+				gdb.addFriendships(user.getId(), friendsIdList);
+			} catch (TwitterException e1) {
+
+				Thread ge = new GraphExpander(userName, e1.getRateLimitStatus().getSecondsUntilReset(), e1.getRateLimitStatus().getResetTimeInSeconds());
+				handleTwitterException(e1, ge);
+				
+			}
+		}
+
+		for (Long id : friendsIdList) {
+
+			List<Long> friendsOfFriendList = gdb.getFriends(id);
+
+			if (!util.listIsValid(friendsOfFriendList)) {
+				friendsOfFriendList = new ArrayList<Long>();
+				try {
+					for (Long friendOfFriendId : twitter.getFriendsIDs(id, -1).getIDs()) {
+						friendsOfFriendList.add(friendOfFriendId);
+					}
+					gdb.addFriendships(id, friendsOfFriendList);
+				} catch (TwitterException e1) {
+					Thread ge = new GraphExpander(userName, e1.getRateLimitStatus().getSecondsUntilReset(), e1.getRateLimitStatus().getResetTimeInSeconds());
+					handleTwitterException(e1, ge);
+					
+				}
+			}
+		}
+
+		searchesInAction.remove(userName.toLowerCase());
+
+	}
+	private void handleTwitterException(TwitterException e1) throws DebatreeException {
+		handleTwitterException(e1, null);
+	}
+
+	private void handleTwitterException(TwitterException e1, Thread job) throws DebatreeException {
+
+		if (e1.exceededRateLimitation()) {
+
+			int secs = e1.getRateLimitStatus().getSecondsUntilReset();
+			
+			announcer.setResetTimeInSecs(e1.getRateLimitStatus().getResetTimeInSeconds());
+			announcerMgr.updateAnnouncer(announcer);
+			if (job != null) {
+				job.start();
+			}
+			throw new DebatreeException(e1);
+		} else {
+			logger.error(e1.getMessage(), e1);
+
+		}
+	}
+
+	public GraphState getGraphForUser(String userName) throws DebatreeException {
+		
+		setFriendsOfFriendsGraph(userName);
+		return getGraphForUser(getUser(userName, false).getId());
+	}
+
+	public GraphState getGraphForUser(long userId) {
+
+		GraphState graph = new GraphState();
+
+		List<Long> friendsIdList = gdb.getFriends(userId);
+
+		for (Long friend : friendsIdList) {
+			graph.addLink(userId, friend);
+			List<Long> friendsOfFriendList = gdb.getFriends(friend);
+
+			for (Long friendOfFriend : friendsOfFriendList) {
+
+				graph.addLink(friend, friendOfFriend);
+			}
+
+		}
+
+		graph.process();
+		return graph;
+
+	}
+
 	public FriendListJSONImpl getFriends(String userName, String dataCursor) throws DebatreeException {
-		UserJSONImpl user = getUser(userName);
+		UserJSONImpl user = getUser(userName, true);
+
 		FriendListJSONImpl friendListJSON = null;
 		String nextCursor = "-1";
-		if (cursorUserListMap.containsKey(dataCursor)) {
-			List<UserJSONImpl> friends = new ArrayList<UserJSONImpl>();
-			friends.addAll(cursorUserListMap.get(dataCursor));
-			nextCursor= cursorNextCursorMap.get(dataCursor);
-			friendListJSON = new FriendListJSONImpl(friends, nextCursor);
+
+		if (cursorUserListMap.containsKey(userName + dataCursor)) {
+
+			nextCursor = dataCursor;
+			List<UserJSONImpl> friendList = new ArrayList<UserJSONImpl>();
+			while (cursorUserListMap.containsKey(userName + nextCursor)) {
+				friendList.addAll(cursorUserListMap.get(userName + nextCursor));
+				nextCursor = cursorNextCursorMap.get(userName + nextCursor);
+			}
+
+			for (int i = 0; i < friendList.size(); i++) {
+				UserJSONImpl u = friendList.get(i);
+				UserJSONImpl dbu = getUser(u.getScreenName(), false);
+				friendList.set(i, dbu);
+
+			}
+
+			friendListJSON = new FriendListJSONImpl(nextCursor, user, friendList);
 		} else {
 			friendListJSON = saveFriends(user, dataCursor);
-	
-		}		
-		Thread nextCursorObtainer = new Thread(new TwitterCrawler(user,friendListJSON.getNextCursor()));
+		}
+		Thread nextCursorObtainer = new Thread(new TwitterCrawler(user, friendListJSON.getNextCursor()));
 		nextCursorObtainer.start();
 		return friendListJSON;
 	}
 
 	public String getFriendsAsJSON(String screenName, String dataCursor) throws DebatreeException {
-		FriendListJSONImpl friendList = getFriends(screenName,dataCursor);
+		FriendListJSONImpl friendList = getFriends(screenName, dataCursor);
 
 		Gson gson = new GsonBuilder().setPrettyPrinting().create();
-	
+
 		String s = gson.toJson(friendList, FriendListJSONImpl.class);
 
 		return s;
 
 	}
 
-	
 	private String get(String url) throws DebatreeException {
 		return get(url, null);
 	}
@@ -387,9 +534,6 @@ public class TwitterClient {
 
 		} else {
 
-			
-			users = GraphDatabase.getInstance().getUsers(idList);
-
 			if (idList.size() != users.size()) {
 				ArrayList<Long> foundUserIds = new ArrayList<Long>();
 
@@ -409,30 +553,32 @@ public class TwitterClient {
 
 				users.addAll((List<UserJSONImpl>) gson.fromJson(response, listOfTestObject));
 			}
-			
+
 		}
 
 		return users;
 
 	}
 
-	public UserJSONImpl getUser(String screenName) throws DebatreeException {
+	public UserJSONImpl getUser(String screenName, boolean reloadIfneeds) throws DebatreeException {
 
 		UserJSONImpl user = gdb.getUserByName(screenName);
-		if (user == null) {
+		if (user == null || (reloadIfneeds && user.getFollowersCount() < 0)) {
 			String response = get("https://twitter.com/" + screenName);
 			String id = Util.parse(response, "data-user-id=\"", "\"", "js-mini-profile-stats", "</ul>");
 			String friendsCount = Util.parse(response, "<strong>", "<", "data-element-term=\"following_stats\"", "/strong>").replace(",", "");
 			String followersCount = Util.parse(response, "<strong>", "<", "data-element-term=\"follower_stats\"", "/strong>").replace(",", "");
+			String image = Util.parse(response, "img src=\"", "\"", "profile-header-inner-overlay", "</a>");
 
 			user = new UserJSONImpl();
 			user.setScreenName(screenName);
+			user.setPicUrl(image);
 			user.setId(Long.valueOf(id));
 			user.setFriendsCount(Integer.valueOf(friendsCount));
 			user.setFollowersCount(Integer.valueOf(followersCount));
 			gdb.addOrUpdateNode(user);
 		}
-	
+
 		return user;
 
 	}
@@ -453,7 +599,7 @@ public class TwitterClient {
 
 		}
 
-		return getUser(screenName);
+		return getUser(screenName, true);
 
 	}
 

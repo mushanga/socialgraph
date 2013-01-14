@@ -1,10 +1,10 @@
+<%@page import="com.debatree.main.OAuth"%>
 <%@page import="com.debatree.twitter.TwitterClient"%>
 <%@page import="java.io.IOException"%>
 <%@page import="java.util.Date"%>
 <%@page import="java.io.PrintWriter"%>
 <%@page import="java.io.BufferedWriter"%>
 <%@page import="java.io.FileWriter"%>
-<%@page import="com.debatree.task.FindDebateTask"%>
 <%@page import="com.amazonbird.db.data.Announcer"%>
 <%@page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"
 	isELIgnored="true" session="false"%>
@@ -18,8 +18,28 @@
 <%@ page import="com.amazonbird.util.*"%>
 <%
 	
-TwitterClient tc = TwitterClient.getDefaultClient();
 
+OAuth oauth = OAuth.getInstance();
+
+Cookie[] cookies = request.getCookies();
+Announcer ann = null;
+if(cookies!=null){
+	for(Cookie cookie : cookies){
+		if(cookie.getName().equalsIgnoreCase(OAuth.COOKIE_NAME)){
+			ann = AnnouncerMgrImpl.getInstance().getAnnouncerByAccessToken(cookie.getValue());
+		}
+	}
+	
+}
+
+TwitterClient tc = new TwitterClient(ann.getId());
+String screenName = "";
+try{
+
+screenName = ann.getScreenName();	
+}catch(Exception exz){
+	
+}
 %>
 
 <!DOCTYPE html>
@@ -27,7 +47,8 @@ TwitterClient tc = TwitterClient.getDefaultClient();
   <head>
     <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
     <link type="text/css" rel="stylesheet" href="style/newgraphstyle.css"/>
-    <style type="text/css">
+    <link rel="stylesheet" href="http://code.jquery.com/ui/1.9.2/themes/base/jquery-ui.css" />
+  <style type="text/css">
 
 
 
@@ -36,20 +57,25 @@ TwitterClient tc = TwitterClient.getDefaultClient();
   <body>
 	<h2 style="text-align: center">Twitter Graph</h2>
 	<div style="width: 1000px; height: 30px;text-align: center; font-size: 12px;">
-		
+		<a href="<%=oauth.getAuthUrl()%>">Sign in with Twitter</a>
 		Enter a Twitter user name: 
-		<input type="text" id="usernameinput" /> 
-		<input type="button" onclick="getUserAsRoot(document.getElementById('usernameinput').value)"
+		<input type="text" id="usernameinput" value="<%=screenName%>"/> 
+		<input id="operateBtnId" type="button" onclick="getUserGraph()"
 			value="Get" />
-		<input type="button" onclick="graph.clear()"
+		<input id="clearBtnId" type="button" onclick="clearGraph()"
 			value="Clear" />
+		<div style="float:left;width:100px;" id="sliderId"></div>
+		<div style="float:left;margin-left:20px;width:20px;" id="sliderValueId"></div>
+		<div style="float:left;margin-left:20px;width:200px;" id="progressbar"></div>
 		
 	</div>
 	  <div id="loadingDiv" style="width:1000px; height: 30px; text-align: center"></div>
    
-    <div id="screen" style="width:1000px; height: 700px"></div>
+    <div id="screen" style="width:1000px; height: 600px"></div>
    
     <script type="text/javascript" src="http://code.jquery.com/jquery.min.js"></script>
+    
+     <script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js"></script>
     <script src="http://d3js.org/d3.v3.min.js"></script>
     <script type="text/javascript" src="js/debatree.js"></script>
     <script type="text/javascript" src="js/twitterclient.js"></script>
@@ -58,10 +84,23 @@ TwitterClient tc = TwitterClient.getDefaultClient();
     <script type="text/javascript" src="js/util.js"></script>
     
     <script type="text/javascript">
-
+ 
 	graph = new NewGraph("#screen");
 	tw = new TwitterClient();
-	util = new Util();
+	util = new Util(); 
+	var slider;
+  $(function() {
+	  slider = $( "#sliderId" ).slider({max:3,min:2,slide: function( event, ui ) {
+		  var value = ui.value;
+    	graph.threshold = Math.max(value,2) ;
+    	graph.update();
+    	  $('#sliderValueId').html(graph.threshold);
+    } });
+		
+		$(function() {
+		    $("#progressbar").progressbar({ value: 0 });
+		});
+  })
     </script>
   </body>
 </html>
