@@ -32,13 +32,16 @@ if(cookies!=null){
 	
 }
 
-TwitterClient tc = new TwitterClient(ann.getId());
+TwitterClient tc = null;
+
+
 String screenName = "";
 try{
+	tc = new TwitterClient(ann.getId());
 
 screenName = ann.getScreenName();	
 }catch(Exception exz){
-	
+	 tc = TwitterClient.getDefaultClient();
 }
 %>
 
