@@ -454,7 +454,7 @@ public class TwitterClient {
 		long id = getUser(userName, false).getId();
 		UserGraphStatus graphForUser = ugsMgr.getById(id);
 
-		if(graphForUser.getContent()!=null && graphForUser.isCompleted()){
+		if(graphForUser!=null && graphForUser.getContent()!=null && graphForUser.isCompleted()){
 			return graphForUser.getContent();
 		}
 		try {
