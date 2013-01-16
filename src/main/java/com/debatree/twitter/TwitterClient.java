@@ -451,19 +451,26 @@ public class TwitterClient {
 	}
 
 	public String createAndGetGraphForUser(String userName) throws DebatreeException {
-		long id = getUser(userName, false).getId();
-		UserGraphStatus graphForUser = ugsMgr.getById(id);
-
-		if(graphForUser!=null && graphForUser.getContent()!=null && graphForUser.isCompleted()){
-			return graphForUser.getContent();
-		}
+		
+		
 		try {
+			long id = getUser(userName, false).getId();
+			UserGraphStatus graphForUser = ugsMgr.getById(id);
+
+			if(graphForUser!=null && graphForUser.getContent()!=null && graphForUser.isCompleted()){
+				return graphForUser.getContent();
+			}
+
 			long millisecs = new Date().getTime() + 10 * 1000;
 			setFriendsOfFriendsGraph(userName, millisecs);
-		} catch (DebatreeException e) {
+
+			return getGraphForUser(id);
+		}  catch (DebatreeException e) {
 			logger.error(e.getMessage(), e);
+		}catch (Exception e) {
+			logger.error(e.getMessage(),e);
 		}
-		return getGraphForUser(id);
+		return null;
 	}
 
 	public String getGraphForUser(long userId) {
