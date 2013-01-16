@@ -17,8 +17,6 @@
 <%@page import="com.amazonbird.db.data.ProductMessage"%>
 <%@ page import="com.amazonbird.util.*"%>
 <%
-	
-TwitterClient tc = TwitterClient.getDefaultClient();
 
 OAuth oauth = OAuth.getInstance();
 Announcer ann =  oauth.handle(request,response);
@@ -31,20 +29,14 @@ Announcer ann =  oauth.handle(request,response);
   <head>
     <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
   </head>
-  <body onload="setCookie()">
+  <body onload="redirect()">
 
 <script>
-function setCookie(){
-	_setCookie('access_token','<%=ann.getAccessToken()%>',365*24*60*60*1000);
+function redirect(){
+	
 	window.location.href = '../';
 }
 
-function _setCookie(c_name,c_value,c_expiredays) {
-    var exdate=new Date();
-    exdate.setDate(exdate.getDate()+c_expiredays);
-    document.cookie=c_name+ "=" +escape(c_value)+
-    ((c_expiredays==null) ? "" : ";expires="+exdate.toGMTString());
-}
 
 </script>
   </body>

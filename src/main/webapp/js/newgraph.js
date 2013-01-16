@@ -1,4 +1,5 @@
 function NewGraph(el) {
+	var thisObj = this;
 	var clickedImageId;
 	var nodes;
 	var cursors = [];
@@ -7,6 +8,8 @@ function NewGraph(el) {
 	var nodeOutgoingMap = {};
 	var pathNodes = new Array();
 	var newNodes = [];
+	this.centerNodeId = {};
+	
 	this.activeNode = {};
 	this.maxIncoming = 2;
 	this.threshold = 2;
@@ -104,12 +107,13 @@ function NewGraph(el) {
 	}
 
 	this.clear = function () {
+		thisObj.centerNodeId = -1;
 		nodes.length = 0;
 		links.length = 0;
-		cursors.length = 0;
-		nodeIncomingMap = {};
-		nodeOutgoingMap = {};
-		pathNodes = new Array();
+//		cursors.length = 0;
+//		nodeIncomingMap = {};
+//		nodeOutgoingMap = {};
+//		pathNodes = new Array();
 		
 		this.update();
 	}
@@ -216,9 +220,15 @@ function NewGraph(el) {
 
 	var force = d3.layout.force()
 	.size([w, h])
-	.linkDistance(180)
+	.linkDistance(150)
 	.linkStrength(1)
-	.charge(-1000)
+	.charge(function(d){
+		if(d.id == thisObj.centerNodeId){
+			return -800;
+		}	else{
+			return -200
+		}
+	})
 	
 //	.friction(0.1)
 	
@@ -233,6 +243,9 @@ function NewGraph(el) {
 	.attr("y",firstViewTopLeft.y)
     .attr("width", w)
     .attr("height",h)
+	.on("click",function(d){
+		thisObj.nodeClicked(clickedImageId);
+	})
     .style("stroke", "#000");
 	
 //	Per-type markers, as they don't inherit styles.
@@ -249,7 +262,11 @@ function NewGraph(el) {
 	.append("svg:path")
 	.attr("d", "M0,-5L10,0L0,5");
 	var pathGroup = vis.append("svg:g");
-	var circleGroup = vis.append("svg:g");
+	var circleGroup = vis.append("svg:g")
+//	.on("click",function(d){
+//		thisObj.update.nodeClicked(clickedImageId);
+//	})
+//	;
 	var crsrGroup = vis.append("svg:g");
 	var textGroup = vis.append("svg:g");
 	var cursorTextGroup = vis.append("svg:g");
@@ -350,6 +367,7 @@ function NewGraph(el) {
 //			}
 //		}
 
+		
 
 		addAll(nodes, activeNodes);
 		//addAll(cursors, visibleNodes);
@@ -374,7 +392,6 @@ function NewGraph(el) {
 //		force.nodes(visibleNodes);
 //		force.links(visibleLinks);
 		
-		var thisObj = this;
 		var images = circleGroup.selectAll("image")
 		.data(activeNodes, function(d) { return d.id;});
 
@@ -387,52 +404,23 @@ function NewGraph(el) {
 		imagesEnter.append("image")
 	    .attr("xlink:href", function(d) { return d.profile_image_url_https;})
 	    .attr("x", -16)
-	    .attr("y", -16)
-	    .attr("width", imageWidth)
-	    .attr("height", imageHeight)
+	    .attr("y", -16).attr("width", function(d) {if (d.id == thisObj.centerNodeId) {
+						return 2 * imageWidth
+					} else {
+						return imageWidth
+					}
+				})
+				.attr("height", function(d) {
+					if (d.id == thisObj.centerNodeId) {
+						return 2 * imageHeight
+					} else {
+						return imageHeight
+					}
+				})
+		
 		.on("click",  function(ele) {
 			
-			if(ele.id == clickedImageId){
-				circleGroup.selectAll("image").each(function(d,i){
-					this.style.visibility = "visible";
-					this.style.display = "block";
-				
-				});
-				pathGroup.selectAll("path").each(function(d,i){
-					this.style.visibility = "visible";
-					this.style.display = "block";
-				
-				});
-				clickedImageId = -1;
-			}else{
-				
-				var tempVisibleArr = new Array();
-			
-				clickedImageId = ele.id;
-				circleGroup.selectAll("image").each(function(d,i){
-					if(ele.id == d.id || nodesHaveARelation(ele.id, d.id) || thisObj.activeNode && d.id == thisObj.activeNode.id){
-						this.style.visibility = "visible";
-						this.style.display = "block";
-						tempVisibleArr.push(d);
-					}else{
-						this.style.visibility = "hidden";
-						this.style.display = "none";
-					}
-				});
-				pathGroup.selectAll(".link").each(function(link,i){
-					var srcNode = link.source;
-					var trgNode = link.target;
-					
-					if(tempVisibleArr.indexOf(srcNode) >-1 && tempVisibleArr.indexOf(trgNode) >-1){
-						this.style.visibility = "visible";
-						this.style.display = "block";
-					}else{
-						this.style.visibility = "hidden";
-						this.style.display = "none";
-					}
-				});
-			}
-		
+		thisObj.nodeClicked(ele.id);
 		})
 		.on("mouseover",function(ele){
 			
@@ -445,6 +433,18 @@ function NewGraph(el) {
 		.call(force.drag)
 		.style("cursor","pointer");
 
+		if(thisObj.centerNodeId>0){
+
+			var rootNode = thisObj.getNodeById(thisObj.centerNodeId);
+			
+			rootNode.fixed = true;
+			rootNode.x = w/2;
+			rootNode.y = h/2;
+		}
+		
+	
+		
+		
 		var pth = pathGroup.selectAll(".link")
 		.data(visibleLinks, function(d) { return d.source.id + "-" + d.target.id; });
 
@@ -613,6 +613,50 @@ function NewGraph(el) {
 	// Make it all go
 	this.update();
 
+	
+	this.nodeClicked = function(id){
+		if(id == clickedImageId){
+			circleGroup.selectAll("image").each(function(d,i){
+				this.style.visibility = "visible";
+				this.style.display = "block";
+			
+			});
+			pathGroup.selectAll("path").each(function(d,i){
+				this.style.visibility = "visible";
+				this.style.display = "block";
+			
+			});
+			clickedImageId = -1;
+		}else{
+			
+			var tempVisibleArr = new Array();
+		
+			clickedImageId = id;
+			circleGroup.selectAll("image").each(function(d,i){
+				if(id == d.id || nodesHaveARelation(id, d.id) || thisObj.activeNode && d.id == thisObj.activeNode.id){
+					this.style.visibility = "visible";
+					this.style.display = "block";
+					tempVisibleArr.push(d);
+				}else{
+					this.style.visibility = "hidden";
+					this.style.display = "none";
+				}
+			});
+			pathGroup.selectAll(".link").each(function(link,i){
+				var srcNode = link.source;
+				var trgNode = link.target;
+				
+				if(tempVisibleArr.indexOf(srcNode) >-1 && tempVisibleArr.indexOf(trgNode) >-1){
+					this.style.visibility = "visible";
+					this.style.display = "block";
+				}else{
+					this.style.visibility = "hidden";
+					this.style.display = "none";
+				}
+			});
+		}
+	
+	}
 //////////////////
 	function incomingCount(node){
 		if(!nodeIncomingMap[node.id]){

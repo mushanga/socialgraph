@@ -1,7 +1,24 @@
+function setProgressBarMessage(msg){
+	$('#progressbar-message').html(msg);
+	
+}
+function setProgressBarValue(val){
+	$("#progressbar").progressbar({ value: val });
 
+}
 
+function resetProgressBar(){
+	setProgressBarMessage('');
+	setProgressBarValue(0);
+}
+
+var lastUser;
 function getUserGraph(){
 	var userName = document.getElementById('usernameinput').value;
+	if(lastUser!=userName){
+		graph.clear();
+	}
+	setProgressBarMessage('Loading the graph of '+userName+'...');
 	$.ajax({
 
 		url : "userfriend/?user="+userName,
@@ -9,12 +26,16 @@ function getUserGraph(){
 		success :  function(data)
 		{
 
-						
+			lastUser = userName;
+			
+			graph.centerNodeId = data.user;
+			
 			var srcIdList = new Array();
 			var trgIdList = new Array();
 			for ( var i = 0; i < data.users.length; i++) {
 				
 				var newNode = data.users[i];
+					
 				graph.addNode(newNode);
 
 			}
@@ -29,17 +50,40 @@ function getUserGraph(){
 
 			graph.addLinks(srcIdList, trgIdList);
 			
+			var val = parseInt(((data.total-data.left)/data.total)*100);
+			var msg = val + '% of '+userName+'\'s friends are revealed. The graph will be completed soon. Please wait...';
+			if(val==100){
+				msg = 'Completed';
+			}else if(data.protectedGraph){
+				val = 0;
+				msg = userName+'\'s account is protected...';
+			}
+			setProgressBarMessage(msg);
+			setProgressBarValue(val);
 			graph.update();
+			
+			if(data.reloadTimeInSecs){
+
+				window.setTimeout(getUserGraph,data.reloadTimeInSecs * 1000);
+			}
 		},
 		error : function(er)
 		{
 			expanding = false;
-			alert("Bisey oldu ya da kullanicinin bilgileri gizli");
+
+			setProgressBarMessage('The account of '+userName+' is protected. ');
 		},
 
 	});
 }
 
+function clearGraph(){
+//	started = false;
+//	paused = false;
+//	document.getElementById('operateBtnId').value = getButtonValue();
+	resetProgressBar();
+	graph.clear();
+}
 
 
 var started = false;
@@ -70,12 +114,6 @@ function toggle(){
 	}
 	document.getElementById('operateBtnId').value = getButtonValue();
 	
-}
-function clearGraph(){
-	started = false;
-	paused = false;
-	document.getElementById('operateBtnId').value = getButtonValue();
-	graph.clear();
 }
 
 var userMap = {};

@@ -31,6 +31,9 @@ public class HibernateUtil {
 			AnnotationConfiguration cfg = new AnnotationConfiguration();
 			//cfg.addAnnotatedClass(com.debatree.data.Tweet.class);
 			cfg.addAnnotatedClass(com.debatree.data.User.class);
+			cfg.addAnnotatedClass(com.debatree.data.UserFriendListStatus.class);
+			cfg.addAnnotatedClass(com.debatree.data.TwitstreetUserTokenStatus.class);
+			cfg.addAnnotatedClass(com.debatree.data.UserGraphStatus.class);
 			
 			cfg.setProperty("hibernate.connection.username", userName);
 			cfg.setProperty("hibernate.connection.password", password);

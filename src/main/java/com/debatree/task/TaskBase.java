@@ -12,12 +12,18 @@ import com.amazonbird.announce.ReasonMgrImpl;
 import com.amazonbird.util.ExceptionUtil;
 import com.amazonbird.util.Util;
 import com.debatree.exception.DebatreeException;
+import com.debatree.service.TwitstreetUserServiceImpl;
+import com.debatree.service.UserFriendsStatusImpl;
+import com.debatree.service.UserGraphServiceImpl;
 import com.debatree.twitter.TwitterClient;
 
 public abstract class TaskBase implements Runnable {
 	ExceptionUtil exutil = ExceptionUtil.getInstance();
 Twitter t = new TwitterFactory().getInstance();
 	Util util = Util.getInstance();
+	TwitstreetUserServiceImpl tsuMgr = new TwitstreetUserServiceImpl();
+	UserFriendsStatusImpl ufsMgr = new UserFriendsStatusImpl();
+	UserGraphServiceImpl ugsMgr = new UserGraphServiceImpl();
 	ProductMgrImpl productMgr = ProductMgrImpl.getInstance();
 	ReasonMgrImpl reasonMgr = ReasonMgrImpl.getInstance();
 	AnnouncementMgrImpl announcementMgr = AnnouncementMgrImpl.getInstance();
@@ -27,19 +33,17 @@ Twitter t = new TwitterFactory().getInstance();
 private String TASK_LINE_SYM = " ---------------- ";
 	
 	TwitterClient tc = null;
-	public static int TASK_PERIOD_IN_MILSECS = 60 * 60 * 1000;
+	//public static int TASK_PERIOD_IN_MILSECS = 60 * 60 * 1000;
 
 	public TaskBase(){
-		 try {
+		try {
 			tc = TwitterClient.getDefaultClient();
 		} catch (DebatreeException e) {
 			logger.error(e.getMessage());
 		}
 	}
 	public abstract String getName();
-	public long getTaskPeriod(){
-		return TASK_PERIOD_IN_MILSECS;
-	}
+	public abstract long getTaskPeriod();
 	
 	public abstract void process() throws DebatreeException;
 	
@@ -50,14 +54,21 @@ private String TASK_LINE_SYM = " ---------------- ";
 
 		while (true) {
 			long startTime = System.currentTimeMillis();
-			logger.info(getName() + " starting the unit process...");
-
+			
+			if(isLogEnabled()){
+				logger.info(getName() + " starting the unit process...");
+	
+			}
+			
 			try {
 				
 				process();
 				
-				
-				logger.info(getName() + " finished the unit process successfully.");
+				if(isLogEnabled()){
+					logger.info(getName() + " finished the unit process successfully.");
+					
+		
+				}
 				
 			} catch (DebatreeException ex) {
 				logger.error(getName() + " failed to finish the unit process.",ex);
@@ -71,6 +82,7 @@ private String TASK_LINE_SYM = " ---------------- ";
 			}
 		}
 	}
+	protected abstract boolean isLogEnabled();
 
 
 

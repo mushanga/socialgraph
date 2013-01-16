@@ -1,80 +1,28 @@
 package com.debatree.service;
 
-import java.util.List;
-
 import org.apache.log4j.Logger;
-import org.hibernate.Criteria;
-import org.hibernate.HibernateException;
-import org.hibernate.Session;
-import org.hibernate.criterion.Restrictions;
 
-import com.amazonbird.util.Util;
+import com.debatree.data.HibernateObject;
 import com.debatree.data.User;
 
-public class UserServiceImpl {
+public class UserServiceImpl extends HibernateService {
 
 	private static Logger logger = Logger.getLogger(UserServiceImpl.class);
-	public void saveUser(User user) {
-		Session session = HibernateUtil.getSession();
 
-		User t = (User) session.get(User.class, user.getId());
-		
-		try {
-			session.beginTransaction();
-			if(t!=null){
-				t.retrieveValuesFrom(user);
-				session.update(t);
-			}else{
-				session.save(user);
-				
-			}
-			session.getTransaction().commit();
-		
-		} catch (HibernateException e) {
-			session.getTransaction().rollback();
-			logger.error(e.getMessage(),e);
-		}finally{
-			session.close();
-		}
-	}
 
 	public User getUser(long id){
 		
-		Session session = HibernateUtil.getSession();
-		
-		try {
-			User t = (User) session.get(User.class, new Long(id));
-
-			return t;
-		} catch (HibernateException e) {
-			
-			logger.error(e.getMessage(),e);
-		}finally{
-
-			session.close();
-		}
-		return null;
+		return (User) getById(id);
 	}
 	public User getUserByName(String name) {
-		Session session = HibernateUtil.getSession();
 		
-		try {
-			Criteria criteria = session.createCriteria(User.class);
-			List results = criteria.add(Restrictions.eq("screenName", name)).list();
-			
-			if(Util.getInstance().isListValid(results)){
-				return (User) results.get(0);
-			}else{
-				return null;
-			}
-		} catch (HibernateException e) {
-			logger.error(e.getMessage(),e);
-		}finally{
+		return (User) getByField("screenName", name);
+		
+	}
 
-			session.close();
-		}
-		return null;
-		
+	@Override
+	public Class<? extends HibernateObject> getEntityClass() {
+		return User.class;
 	}
 
 }

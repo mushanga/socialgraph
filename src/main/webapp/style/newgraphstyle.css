@@ -1,3 +1,10 @@
+
+
+
+#progressbar-message {
+text-align: center;
+}
+
 rect {
   fill: none;
   pointer-events: all;

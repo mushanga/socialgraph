@@ -6,8 +6,17 @@
 	<display-name>debatree</display-name>
 	<listener>
 		<listener-class>com.debatree.main.DebatreeMain</listener-class>
-	</listener>
+	</listener> 
+	
+	<filter>
+		<filter-name>authFilter</filter-name>
+		<filter-class>com.debatree.main.AuthFilter</filter-class>
+	</filter>
 
+	<filter-mapping>
+		<filter-name>authFilter</filter-name>
+		<url-pattern>/*</url-pattern>
+	</filter-mapping>
 <!-- 	<servlet> -->
 <!-- 		<servlet-name>mgr</servlet-name> -->
 <!-- 		<jsp-file>/mgr/index.jsp</jsp-file> -->

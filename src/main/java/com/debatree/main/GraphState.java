@@ -7,6 +7,8 @@ import java.util.Set;
 
 import org.apache.log4j.Logger;
 
+import twitter4j.User;
+
 import com.debatree.json.UserJSONImpl;
 import com.debatree.twitter.TwitterClient;
 import com.google.gson.Gson;
@@ -32,6 +34,27 @@ public class GraphState{
 
 	@Expose
 	List<UserJSONImpl> users= new ArrayList<UserJSONImpl>();
+
+	@Expose
+	private
+	long user = -1;
+
+	@Expose
+	private
+	int total;
+
+	@Expose
+	private
+	int reloadTimeInSecs;
+
+	@Expose
+	private
+	int left;
+
+	@Expose
+	private
+	boolean protectedGraph;
+
 
 	private static Logger logger = Logger.getLogger(GraphState.class);
 	
@@ -94,12 +117,44 @@ public class GraphState{
 		}
 		
 		
+		
+		
 	}
 	public String toJson(){
 		Gson gson = new GsonBuilder().setPrettyPrinting().excludeFieldsWithoutExposeAnnotation().create();
 		
 		String json = gson.toJson(this, this.getClass());
 		return json;
+	}
+	public int getTotal() {
+		return total;
+	}
+	public void setTotal(int total) {
+		this.total = total;
+	}
+	public int getLeft() {
+		return left;
+	}
+	public void setLeft(int left) {
+		this.left = left;
+	}
+	public int getReloadTimeInSecs() {
+		return reloadTimeInSecs;
+	}
+	public void setReloadTimeInSecs(int reloadTimeInSecs) {
+		this.reloadTimeInSecs = reloadTimeInSecs;
+	}
+	public long getUser() {
+		return user;
+	}
+	public void setUser(long user) {
+		this.user = user;
+	}
+	public boolean isProtectedGraph() {
+		return protectedGraph;
+	}
+	public void setProtectedGraph(boolean protectedGraph) {
+		this.protectedGraph = protectedGraph;
 	}
 	
 }

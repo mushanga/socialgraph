@@ -1,9 +1,13 @@
 package com.debatree.main;
 
+import java.util.List;
+
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.apache.http.client.utils.URLEncodedUtils;
+import org.apache.http.message.BasicNameValuePair;
 import org.scribe.builder.ServiceBuilder;
 import org.scribe.builder.api.TwitterApi;
 import org.scribe.model.OAuthRequest;
@@ -24,8 +28,8 @@ import com.google.gson.Gson;
 
 public class OAuth {
 	private static PropsConfigMgrImpl propsMgr = PropsConfigMgrImpl.getInstance();
-	private static String API_KEY = propsMgr.getApiKey();
-	private static String API_SECRET =  propsMgr.getApiSecret();
+	public static String API_KEY = propsMgr.getApiKey();
+	public static String API_SECRET =  propsMgr.getApiSecret();
 	private static String CALLBACK_URL = "http://127.0.0.1:8080/debatree/callback";
 
 
@@ -39,6 +43,8 @@ public class OAuth {
 	public static OAuth getInstance() {
 		return instance;
 	}
+
+	
 
 	private OAuth() {
 		service = new ServiceBuilder().provider(TwitterApi.class).apiKey(API_KEY).apiSecret(API_SECRET).callback(CALLBACK_URL).build();
@@ -56,15 +62,6 @@ public class OAuth {
 
 	public Announcer handle(HttpServletRequest request, HttpServletResponse response) {
 		Announcer announcer = null;
-		if(request.getCookies() != null){
-			for(Cookie co : request.getCookies()){
-				if(co.getName().equals(COOKIE_NAME)){
-					announcer = AnnouncerMgrImpl.getInstance().getAnnouncerByAccessToken(co.getValue());
-					
-				}
-			}
-				
-		}
 
 		String oAuthToken = request.getParameter("oauth_token");
 		String oAuthVerifier = request.getParameter("oauth_verifier");
@@ -73,8 +70,13 @@ public class OAuth {
 			Verifier v = new Verifier(oAuthVerifier);
 			Token accessToken = service.getAccessToken(new Token(oAuthToken, API_SECRET), v);
 
-			accessToken.getToken();
 
+			Cookie coo= new Cookie(COOKIE_NAME,accessToken.getToken());
+			coo.setMaxAge(Integer.MAX_VALUE);
+			coo.setPath("/");
+			response.addCookie(coo);
+			
+			
 			OAuthRequest req = new OAuthRequest(Verb.GET, "https://api.twitter.com/1.1/account/verify_credentials.json");
 			service.signRequest(accessToken, req); // the access token from step
 													// 4
@@ -94,12 +96,33 @@ public class OAuth {
 			newAnnouncer.setPictureUrl(userjson.getPicUrl());
 
 			AnnouncerMgrImpl.getInstance().addAnnouncer(newAnnouncer);
-			request.setAttribute("access_token", accessToken.getToken());
-		
 			
 			announcer = newAnnouncer;
 		}
+		
+		
 		return announcer;
+		
+	}	
+	public String get(String apiKey, String apiSecret, String token, String secret,String url,  List<BasicNameValuePair> nvps) {
+	
+		OAuthService service = new ServiceBuilder().provider(TwitterApi.class).apiKey(apiKey).apiSecret(apiSecret).build();
+		
+			OAuthRequest req = new OAuthRequest(Verb.GET, "https://api.twitter.com/1.1/"+url);
+			if(nvps!=null){
+
+				for(BasicNameValuePair nvp : nvps){
+
+					req.addQuerystringParameter(nvp.getName(), nvp.getValue());
+				}
+			}
+			
+			service.signRequest(new Token(token, secret), req); // the access token from step
+													// 4
+			Response resp = req.send();
+			//System.out.println(resp.getBody());
+		
+			return resp.getBody();
 		
 	}
 }

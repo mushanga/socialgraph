@@ -1,6 +1,7 @@
 package com.debatree.main;
 
 import java.io.File;
+import java.util.ArrayList;
 
 import javax.servlet.ServletContext;
 import javax.servlet.ServletContextEvent;
@@ -17,6 +18,9 @@ import com.amazonbird.db.base.DBMgrImpl;
 import com.amazonbird.monitor.JVMMonitor;
 import com.amazonbird.statistics.Collector;
 import com.amazonbird.util.Util;
+import com.debatree.task.ResetRateLimitedTokens;
+import com.debatree.task.RevealWaitingGraphs;
+import com.debatree.task.TaskBase;
 import com.tcommerce.graph.GraphDatabase;
 
 public class DebatreeMain implements ServletContextListener {
@@ -61,16 +65,21 @@ public class DebatreeMain implements ServletContextListener {
 	}
 
 	private void startTasks() {
-//		ArrayList<TaskBase> tasks = new ArrayList<TaskBase>();
-//		
-//		FindDebateTask findDebateTask = new FindDebateTask();
-//		tasks.add(findDebateTask);
-//		for(TaskBase task : tasks){
-//
-//			Thread findDebateThread = new Thread(findDebateTask);
-//			findDebateThread.setName(task.getName());
-//			findDebateThread.start();
-//		}
+		ArrayList<TaskBase> tasks = new ArrayList<TaskBase>();
+
+		ResetRateLimitedTokens resetRLTTask = new ResetRateLimitedTokens();	
+		tasks.add(resetRLTTask);
+		
+		RevealWaitingGraphs revealGraphsTask = new RevealWaitingGraphs();	
+		tasks.add(revealGraphsTask);
+		
+		
+		for(TaskBase task : tasks){
+
+			Thread thread = new Thread(task);
+			thread.setName(task.getName());
+			thread.start();
+		}
 
 
 	}

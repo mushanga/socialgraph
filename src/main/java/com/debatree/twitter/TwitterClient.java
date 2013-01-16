@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
@@ -23,35 +24,51 @@ import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.protocol.HTTP;
 import org.apache.log4j.Logger;
+import org.scribe.oauth.OAuthService;
 
-import twitter4j.IDs;
+import scala.concurrent.pilib.UGP;
+import twitter4j.ResponseList;
 import twitter4j.Twitter;
 import twitter4j.TwitterException;
 import twitter4j.TwitterFactory;
+import twitter4j.User;
 import twitter4j.auth.AccessToken;
 
 import com.amazonbird.announce.AnnouncerMgrImpl;
+import com.amazonbird.config.PropsConfigMgrImpl;
 import com.amazonbird.db.base.DBMgrImpl;
 import com.amazonbird.db.data.Announcer;
 import com.amazonbird.util.Util;
+import com.debatree.data.TwitstreetUserTokenStatus;
+import com.debatree.data.UserGraphStatus;
 import com.debatree.exception.DebatreeException;
 import com.debatree.json.FriendListJSONImpl;
 import com.debatree.json.IDsJSONImpl;
 import com.debatree.json.TweetJSONImpl;
 import com.debatree.json.UserJSONImpl;
 import com.debatree.main.GraphState;
+import com.debatree.main.OAuth;
+import com.debatree.service.TwitstreetUserServiceImpl;
+import com.debatree.service.UserFriendsStatusImpl;
+import com.debatree.service.UserGraphServiceImpl;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import com.tcommerce.graph.GraphDatabase;
 
 public class TwitterClient {
+	static long defaultAncrId = 549545177;
+	UserFriendsStatusImpl ufsMgr = new UserFriendsStatusImpl();
+	TwitstreetUserServiceImpl tsuMgr = new TwitstreetUserServiceImpl();
+	UserGraphServiceImpl ugsMgr = new UserGraphServiceImpl();
+	Announcer announcer;
+	private PropsConfigMgrImpl props = PropsConfigMgrImpl.getInstance();
 	GraphDatabase gdb = GraphDatabase.getInstance();
 	Util util = Util.getInstance();
 	HttpClient client = null;
 	AnnouncerMgrImpl announcerMgr = AnnouncerMgrImpl.getInstance();
 	Twitter twitter = new TwitterFactory().getInstance();
-	Announcer announcer = null;
+	TwitstreetUserTokenStatus token = null;
 	private static boolean DETAILED_LOG = false;
 
 	private static HashMap<String, List<UserJSONImpl>> cursorUserListMap = new HashMap<String, List<UserJSONImpl>>();
@@ -60,13 +77,17 @@ public class TwitterClient {
 	private static Logger logger = Logger.getLogger(TwitterClient.class);
 
 	public TwitterClient(long userId) throws DebatreeException {
+		twitter.setOAuthConsumer(props.getTwitstreetApiKey(), props.getTwitstreetApiSecret());
+		init(userId);
 
-		announcer = announcerMgr.getAnnouncer(userId);
+	}
 
-		twitter.setOAuthConsumer(announcer.getConsumerKey(), announcer.getConsumerSecret());
-		twitter.setOAuthAccessToken(new AccessToken(announcer.getAccessToken(), announcer.getAccessTokenSecret()));
+	private void init(long userId) throws DebatreeException {
+		token = tsuMgr.getToken(userId);
 
-		if (announcer == null) {
+		twitter.setOAuthAccessToken(new AccessToken(token.getoAuthToken(), token.getoAuthTokenSecret()));
+
+		if (token == null) {
 			throw new DebatreeException("No such a user with id: " + userId);
 		}
 
@@ -110,7 +131,7 @@ public class TwitterClient {
 			// System.out.println(paut);
 
 			HttpPost httpPost = new HttpPost("https://twitter.com/sessions");
-			BasicNameValuePair[] params = { new BasicNameValuePair("session[username_or_email]", announcer.getScreenName()), new BasicNameValuePair("session[password]", announcer.getPassword()), new BasicNameValuePair("authenticity_token", paut), };
+			BasicNameValuePair[] params = { new BasicNameValuePair("session[username_or_email]", token.getScreenName()), new BasicNameValuePair("session[password]", announcer.getPassword()), new BasicNameValuePair("authenticity_token", paut), };
 			UrlEncodedFormEntity urlEncodedFormEntity = new UrlEncodedFormEntity(Arrays.asList(params));
 			urlEncodedFormEntity.setContentEncoding(HTTP.UTF_8);
 			httpPost.setEntity(urlEncodedFormEntity);
@@ -142,7 +163,7 @@ public class TwitterClient {
 
 	private void getCredentials() throws DebatreeException {
 		announcer = announcerMgr.getAnnouncer(announcer.getId());
-		if (!util.stringIsValid(announcer.getAuthToken()) || !util.stringIsValid(announcerMgr.getCookie(announcer.getId()))) {
+		if (!util.stringIsValid(announcer.getAuthToken()) || !util.stringIsValid(announcerMgr.getCookie(token.getId()))) {
 			loadCredentials();
 		}
 
@@ -302,168 +323,201 @@ public class TwitterClient {
 		return friendListJSON;
 	}
 
-	// public FriendListJSONImpl getBidirectionalLinks(String userName) throws
-	// DebatreeException {
-	// UserJSONImpl user = getUser(userName,true);
-	// FriendListJSONImpl friendListJSON = null;
-	// String nextCursor = "-1";
-	//
-	// if (cursorUserListMap.containsKey(userName+dataCursor)) {
-	// List<UserJSONImpl> friends = new ArrayList<UserJSONImpl>();
-	// List<UserJSONImpl> friendList =
-	// cursorUserListMap.get(userName+dataCursor);
-	// for(int i = 0; i<friendList.size(); i++){
-	// UserJSONImpl u = friendList.get(i);
-	// UserJSONImpl dbu = getUser(u.getScreenName(), false);
-	// friendList.set(i, dbu);
-	//
-	// }
-	//
-	// friends.addAll(friendList);
-	// nextCursor= cursorNextCursorMap.get(userName+dataCursor);
-	// friendListJSON = new FriendListJSONImpl(nextCursor, user, friends);
-	// } else {
-	// friendListJSON = saveFriends(user, dataCursor);
-	// }
-	// Thread nextCursorObtainer = new Thread(new
-	// TwitterCrawler(user,friendListJSON.getNextCursor()));
-	// nextCursorObtainer.start();
-	// return friendListJSON;
-	// }
+	private List<Long> getFriends(long id, String root) throws DebatreeException {
+		List<Long> friendList = new ArrayList<Long>();
 
-	public class GraphExpander extends Thread {
+		if (ufsMgr.userIsWaiting(id)) {
 
-		String userName;
-		int secsUntilReset;
-		int resetTimeInSecs;
+			ufsMgr.setUserInProgress(id);
 
-		public GraphExpander(String userName, int secs, int resetTimeInSecs) {
-			super();
-			this.secsUntilReset = secs;
-			this.userName = userName;
-			this.resetTimeInSecs = resetTimeInSecs;
-		}
-
-		@Override
-		public void run() {
-			super.run();
+			friendList = new ArrayList<Long>();
 			try {
-				logger.info("Sleeping for " + secsUntilReset + " seconds...");
-				try {
-					Thread.sleep(secsUntilReset * 1000);
-				} catch (InterruptedException e) {
-					logger.error(e.getMessage(), e);
+				for (Long friendOfFriendId : twitter.getFriendsIDs(id, -1).getIDs()) {
+					friendList.add(friendOfFriendId);
 				}
-
-				searchesInAction.remove(userName.toLowerCase());
-				logger.info("Continuing...");
-				setFriendsOfFriendsGraph(userName);
-			} catch (DebatreeException e) {
-				logger.error(e.getMessage(), e);
-			}
-
-		}
-	}
-
-	private static ArrayList<String> searchesInAction = new ArrayList<String>();
-
-	public void setFriendsOfFriendsGraph(String userName) throws DebatreeException {
-
-		if (searchesInAction.contains(userName.toLowerCase())) {
-			return;
-		} else {
-			searchesInAction.add(userName.toLowerCase());
-		}
-		UserJSONImpl user = getUser(userName, true);
-
-		List<Long> friendsIdList = gdb.getFriends(user.getId());
-		if (!util.listIsValid(friendsIdList)) {
-			friendsIdList = new ArrayList<Long>();
-			try {
-				IDs a = twitter.getFriendsIDs(user.getId(), -1);
-
-				for (Long friendId : a.getIDs()) {
-					friendsIdList.add(friendId);
-				}
-
-				gdb.addFriendships(user.getId(), friendsIdList);
-			} catch (TwitterException e1) {
-
-				Thread ge = new GraphExpander(userName, e1.getRateLimitStatus().getSecondsUntilReset(), e1.getRateLimitStatus().getResetTimeInSeconds());
-				handleTwitterException(e1, ge);
-				
-			}
-		}
-
-		for (Long id : friendsIdList) {
-
-			List<Long> friendsOfFriendList = gdb.getFriends(id);
-
-			if (!util.listIsValid(friendsOfFriendList)) {
-				friendsOfFriendList = new ArrayList<Long>();
-				try {
-					for (Long friendOfFriendId : twitter.getFriendsIDs(id, -1).getIDs()) {
-						friendsOfFriendList.add(friendOfFriendId);
-					}
-					gdb.addFriendships(id, friendsOfFriendList);
-				} catch (TwitterException e1) {
-					Thread ge = new GraphExpander(userName, e1.getRateLimitStatus().getSecondsUntilReset(), e1.getRateLimitStatus().getResetTimeInSeconds());
-					handleTwitterException(e1, ge);
+				gdb.addFriendships(id, friendList);
+				ufsMgr.setUserCompleted(id);
+				for(int i =0; i<10 && !ufsMgr.userIsCompleted(id); i++){
+					
+						ufsMgr.setUserCompleted(id);
+						Thread.sleep(1000);
 					
 				}
+			} catch (TwitterException e1) {
+				handleTwitterException(e1, root, id);
+			} catch (Exception e1) {
+				logger.error(e1.getMessage(), e1);
+
 			}
 		}
-
-		searchesInAction.remove(userName.toLowerCase());
-
-	}
-	private void handleTwitterException(TwitterException e1) throws DebatreeException {
-		handleTwitterException(e1, null);
+		return friendList;
 	}
 
-	private void handleTwitterException(TwitterException e1, Thread job) throws DebatreeException {
+	public void setFriendsOfFriendsGraph(String userName) throws DebatreeException {
+		setFriendsOfFriendsGraph(userName, -1);
+
+	}
+
+	public void setFriendsOfFriendsGraph(String userName, long endTimeInMillisecs) throws DebatreeException {
+	
+		
+		UserJSONImpl user = getUser(userName, true);
+		long userId = user.getId();
+
+		if(ugsMgr.graphIsProtected(userId)){
+			return;
+		}
+		ugsMgr.setGraphInProgress(user.getId());
+		ugsMgr.setGraphName(user.getId(), user.getScreenName());
+		
+		
+		try {
+			List<Long> friendsIdList = null;
+			if (ufsMgr.userIsCompleted(userId)) {
+				friendsIdList = gdb.getFriends(user.getId());
+			} else if (ufsMgr.userIsWaiting(userId)) {
+				friendsIdList = getFriends(userId, userName);
+			}
+
+			if(ufsMgr.userIsProtected(userId)){
+				ugsMgr.setGraphProtected(userId);
+				return;
+			}
+			int i = 0;
+			for (Long friendId : friendsIdList) {
+				if (endTimeInMillisecs < 0 || new Date().getTime() < endTimeInMillisecs) {
+					if (ufsMgr.userIsWaiting(friendId)) {
+
+						getFriends(friendId, userName);
+
+					}
+				}else{
+
+					ugsMgr.setGraphWaiting(user.getId());
+					return;
+				}
+			}
+			
+			ugsMgr.setGraphCompleted(user.getId());
+			
+			
+		} catch (Exception e) {
+
+			ugsMgr.setGraphWaiting(user.getId());
+			
+			
+			logger.error(e.getMessage(),e);
+		}
+	}
+
+	private void changeTokenAndContinueForUser(String centerOfGraph) throws DebatreeException {
+		token = tsuMgr.getAvailabeToken();
+		if (token != null) {
+			this.init(token.getId());
+			setFriendsOfFriendsGraph(centerOfGraph);
+		} else {
+			throw new DebatreeException("Available token not found...");
+
+		}
+	}
+
+	private void handleTwitterException(TwitterException e1, String centerOfGraph, long userThrowingException) throws DebatreeException {
+
+		ufsMgr.setUserWaiting(userThrowingException);
 
 		if (e1.exceededRateLimitation()) {
 
-			int secs = e1.getRateLimitStatus().getSecondsUntilReset();
-			
-			announcer.setResetTimeInSecs(e1.getRateLimitStatus().getResetTimeInSeconds());
-			announcerMgr.updateAnnouncer(announcer);
-			if (job != null) {
-				job.start();
-			}
-			throw new DebatreeException(e1);
+			tsuMgr.setTokenRateLimited(token.getId(), e1.getRateLimitStatus().getResetTimeInSeconds());
+			logger.info(e1.getMessage());
+			changeTokenAndContinueForUser(centerOfGraph);
+		} else if (e1.getMessage().contains("Invalid or expired token")) {
+			tsuMgr.setTokenInvalid(token.getId());
+			logger.info("Invalid token: " + token.getScreenName());
+			logger.info(e1.getMessage());
+			changeTokenAndContinueForUser(centerOfGraph);
+
+		} else if (e1.getMessage().contains("\"error\":\"Not authorized\"")) {
+
+			ufsMgr.setUserProtected(userThrowingException);
+			logger.info("Protected user: " + userThrowingException);
+		} else if (e1.getMessage().contains("Could not authenticate you")) {
+			tsuMgr.setTokenInvalid(token.getId());
+			logger.info("Invalid token: " + token.getScreenName());
+			logger.info(e1.getMessage());
 		} else {
 			logger.error(e1.getMessage(), e1);
 
 		}
 	}
 
-	public GraphState getGraphForUser(String userName) throws DebatreeException {
-		
-		setFriendsOfFriendsGraph(userName);
-		return getGraphForUser(getUser(userName, false).getId());
+	public String createAndGetGraphForUser(String userName) throws DebatreeException {
+		long id = getUser(userName, false).getId();
+		UserGraphStatus graphForUser = ugsMgr.getById(id);
+
+		if(graphForUser.getContent()!=null && graphForUser.isCompleted()){
+			return graphForUser.getContent();
+		}
+		try {
+			long millisecs = new Date().getTime() + 10 * 1000;
+			setFriendsOfFriendsGraph(userName, millisecs);
+		} catch (DebatreeException e) {
+			logger.error(e.getMessage(), e);
+		}
+		return getGraphForUser(id);
 	}
 
-	public GraphState getGraphForUser(long userId) {
+	public String getGraphForUser(long userId) {
 
 		GraphState graph = new GraphState();
 
-		List<Long> friendsIdList = gdb.getFriends(userId);
+		if(ugsMgr.graphIsProtected(userId)){
+			graph.setProtectedGraph(true);
+		}
 
+		graph.setUser(userId);
+		graph.addVisibleNode(userId);
+
+		List<Long> friendsIdList = gdb.getFriends(userId);
+		ArrayList<Long> userAndAllFriends = new ArrayList<Long>();
+
+		userAndAllFriends.addAll(friendsIdList);
+		userAndAllFriends.add(userId);
+
+		int total = friendsIdList.size();
+
+		int completed = 0;
 		for (Long friend : friendsIdList) {
 			graph.addLink(userId, friend);
-			List<Long> friendsOfFriendList = gdb.getFriends(friend);
+			List<Long> friendsOfFriendList = gdb.getMutualFriendsInList(friend, userAndAllFriends);
 
 			for (Long friendOfFriend : friendsOfFriendList) {
 
 				graph.addLink(friend, friendOfFriend);
+				graph.addLink(friendOfFriend, friend);
+			}
+
+			if (ufsMgr.userIsCompleted(friend) || ufsMgr.userIsProtected(friend)) {
+
+				completed++;
 			}
 
 		}
 
+		graph.setTotal(total);
+		graph.setLeft(total - completed);
+		if (total - completed != 0) {
+			graph.setReloadTimeInSecs((total - completed)/10);
+		}
 		graph.process();
-		return graph;
+
+		UserGraphStatus graphForUser = ugsMgr.getById(userId);
+
+		if(graphForUser.getContent()==null && graphForUser.isCompleted()){
+			graphForUser.setContent(graph.toJson());
+			
+			ugsMgr.save(graphForUser, userId);
+		}
+		return graph.toJson();
 
 	}
 
@@ -534,26 +588,22 @@ public class TwitterClient {
 
 		} else {
 
-			if (idList.size() != users.size()) {
-				ArrayList<Long> foundUserIds = new ArrayList<Long>();
-
-				for (UserJSONImpl user : users) {
-					foundUserIds.add(user.getId());
-				}
-				idList.removeAll(foundUserIds);
-
+			try {
 				ArrayList<BasicNameValuePair> nvps = new ArrayList<BasicNameValuePair>();
 				String ids = DBMgrImpl.getIdListAsCommaSeparatedString4In(idList);
 				nvps.add(new BasicNameValuePair("user_id", ids));
-				String response = get("https://api.twitter.com/1/users/lookup.json", nvps);
+
+				String resp = OAuth.getInstance().get(props.getTwitstreetApiKey(), props.getTwitstreetApiSecret(), token.getoAuthToken(), token.getoAuthTokenSecret(), "users/lookup.json", nvps);
+
 				Type listOfTestObject = new TypeToken<List<UserJSONImpl>>() {
 				}.getType();
 
 				Gson gson = new Gson();
 
-				users.addAll((List<UserJSONImpl>) gson.fromJson(response, listOfTestObject));
+				users.addAll((List<UserJSONImpl>) gson.fromJson(resp, listOfTestObject));
+			} catch (Exception e) {
+				logger.error(e.getMessage(), e);
 			}
-
 		}
 
 		return users;
@@ -563,19 +613,34 @@ public class TwitterClient {
 	public UserJSONImpl getUser(String screenName, boolean reloadIfneeds) throws DebatreeException {
 
 		UserJSONImpl user = gdb.getUserByName(screenName);
-		if (user == null || (reloadIfneeds && user.getFollowersCount() < 0)) {
-			String response = get("https://twitter.com/" + screenName);
-			String id = Util.parse(response, "data-user-id=\"", "\"", "js-mini-profile-stats", "</ul>");
-			String friendsCount = Util.parse(response, "<strong>", "<", "data-element-term=\"following_stats\"", "/strong>").replace(",", "");
-			String followersCount = Util.parse(response, "<strong>", "<", "data-element-term=\"follower_stats\"", "/strong>").replace(",", "");
-			String image = Util.parse(response, "img src=\"", "\"", "profile-header-inner-overlay", "</a>");
+		if (user == null || user.getId()<0|| (reloadIfneeds && user.getFollowersCount() < 0)) {
+//			String response = get("https://twitter.com/" + screenName);
+//			String id = Util.parse(response, "data-user-id=\"", "\"", "js-mini-profile-stats", "</ul>");
+//			String friendsCount = Util.parse(response, "<strong>", "<", "data-element-term=\"following_stats\"", "/strong>").replace(",", "");
+//			String followersCount = Util.parse(response, "<strong>", "<", "data-element-term=\"follower_stats\"", "/strong>").replace(",", "");
+//			String image = Util.parse(response, "img src=\"", "\"", "profile-header-inner-overlay", "</a>");
+//
+//			user = new UserJSONImpl();
+//			user.setScreenName(screenName);
+//			user.setPicUrl(image);
+//			user.setId(Long.valueOf(id));
+//			user.setFriendsCount(Integer.valueOf(friendsCount));
+//			user.setFollowersCount(Integer.valueOf(followersCount));
+			
 
-			user = new UserJSONImpl();
-			user.setScreenName(screenName);
-			user.setPicUrl(image);
-			user.setId(Long.valueOf(id));
-			user.setFriendsCount(Integer.valueOf(friendsCount));
-			user.setFollowersCount(Integer.valueOf(followersCount));
+			try {
+				ArrayList<BasicNameValuePair> nvps = new ArrayList<BasicNameValuePair>();
+				nvps.add(new BasicNameValuePair("screen_name", screenName));
+
+				String resp = OAuth.getInstance().get(props.getTwitstreetApiKey(), props.getTwitstreetApiSecret(), token.getoAuthToken(), token.getoAuthTokenSecret(), "users/show.json", nvps);
+
+				Gson gson = new Gson();
+
+				user = (UserJSONImpl) gson.fromJson(resp, UserJSONImpl.class);
+				
+			} catch (Exception e) {
+				logger.error(e.getMessage(), e);
+			}
 			gdb.addOrUpdateNode(user);
 		}
 
@@ -647,7 +712,7 @@ public class TwitterClient {
 
 	public List<Long> getFollowersIDs(long id, int cursor) throws DebatreeException {
 		ArrayList<BasicNameValuePair> nvps = new ArrayList<BasicNameValuePair>();
-		nvps.add(new BasicNameValuePair("screen_name", String.valueOf(this.announcer.getScreenName())));
+		nvps.add(new BasicNameValuePair("screen_name", String.valueOf(this.token.getScreenName())));
 		nvps.add(new BasicNameValuePair("cursor", String.valueOf(cursor)));
 		String response = get("https://api.twitter.com/1/followers/ids.json", nvps);
 
@@ -665,7 +730,7 @@ public class TwitterClient {
 
 		httpReq.setHeader("scheme", "https");
 		httpReq.setHeader("version", "HTTP/1.1");
-		httpReq.setHeader("Cookie", announcerMgr.getCookie(announcer.getId()));
+		httpReq.setHeader("Cookie", announcerMgr.getCookie(token.getId()));
 		httpReq.setHeader("Pragma", "no-cache");
 		httpReq.setHeader("Cache-Control", "no-cache");
 	}
@@ -761,7 +826,7 @@ public class TwitterClient {
 		}
 
 		if (DETAILED_LOG) {
-			logger.info("Announcer: " + announcer.getScreenName());
+			logger.info("Announcer: " + token.getScreenName());
 			logger.info("REQUEST URL:" + url);
 
 			int maxChar = 100;
@@ -781,15 +846,16 @@ public class TwitterClient {
 		} else if (responseContent.contains("Your account may not be allowed to perform this action.")) {
 			throw new DebatreeException("Your account may not be allowed to perform this action.");
 		} else if (responseContent.contains("Your account is suspended")) {
-			announcerMgr.setAnnouncerSuspended(this.announcer.getId());
+			announcerMgr.setAnnouncerSuspended(this.token.getId());
 		}
 		return responseContent;
 	}
 
 	public static TwitterClient getDefaultClient() throws DebatreeException {
-		List<Announcer> anList = AnnouncerMgrImpl.getInstance().getAllAnnouncers();
 
-		return new TwitterClient(anList.get(0).getId());
+		TwitstreetUserServiceImpl tsuMgr = new TwitstreetUserServiceImpl();
+
+		return new TwitterClient(tsuMgr.getAvailabeToken().getId());
 	}
 
 	public List<TweetJSONImpl> search(String str) throws DebatreeException {

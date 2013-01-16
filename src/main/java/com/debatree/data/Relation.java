@@ -5,7 +5,7 @@ import javax.persistence.Entity;
 import javax.persistence.Id;
 
 @Entity
-public class User extends HibernateObject{
+public class Relation {
 
 	@Id long id = -1;
 	@Column(name="screen_name", unique=true) String screenName = null;
@@ -46,10 +46,7 @@ public class User extends HibernateObject{
 		this.picUrl = picUrl;
 	}
 	
-	@Override
-	public void copyPropertiesFrom(Object obj){
-		
-		User user = (User) obj;
+	public void retrieveValuesFrom(Relation user){
 		if(user.getFriendsCount()>-1){
 			this.setFriendsCount(user.getFriendsCount());
 			

@@ -28,6 +28,8 @@ public class PropsConfigMgrImpl {
 	public static final String IMAGES = "images";
 	public static final String API_KEY = "twitterApiKey";
 	public static final String API_SECRET = "twitterApiSecret";
+	public static final String TWITSTREET_API_KEY = "twitstreetApiKey";
+	public static final String TWITSTREET_API_SECRET = "twitstreetApiSecret";
 	private static final String GRAPH_DB_PATH = "graphdb";
 	
 	public static final String AMAZONBIRD_PROPERTIES = System
@@ -65,6 +67,8 @@ public class PropsConfigMgrImpl {
 		configMap.put(GRAPH_DB_PATH, properties.getProperty(GRAPH_DB_PATH));
 		configMap.put(API_KEY, properties.getProperty(API_KEY));
 		configMap.put(API_SECRET, properties.getProperty(API_SECRET));
+		configMap.put(TWITSTREET_API_SECRET, properties.getProperty(TWITSTREET_API_SECRET));
+		configMap.put(TWITSTREET_API_KEY, properties.getProperty(TWITSTREET_API_KEY));
 		initialized = true;
 	}
 	
@@ -145,5 +149,13 @@ public class PropsConfigMgrImpl {
 
 	public String getApiKey() {
 		return get(API_KEY);
+	}
+	public String getTwitstreetApiSecret() {
+
+		return get(TWITSTREET_API_SECRET);
+	}
+
+	public String getTwitstreetApiKey() {
+		return get(TWITSTREET_API_KEY);
 	}
 }
