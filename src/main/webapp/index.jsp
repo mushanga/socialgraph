@@ -52,7 +52,7 @@ try{
   <body>
 	<h2 style="text-align: center">Twitter Graph</h2>
 	
-	<% if(ann==null){
+<%-- 	<% if(ann==null){
 	%>
 	<a href="<%=oauth.getAuthUrl()%>">Sign in with Twitter</a>
 	
@@ -60,6 +60,7 @@ try{
 		
 	%>
 	
+	<%}%> --%>
 	<div style="width: 1000px; height: 30px;text-align: center; font-size: 12px;">
 		Enter a Twitter user name: 
 		<input type="text" id="usernameinput" value="<%=screenName%>"/> 
@@ -67,7 +68,7 @@ try{
 			value="Get" />
 		<input id="clearBtnId" type="button" onclick="clearGraph()"
 			value="Clear" />
-	<a href="javascript:void(0)" onclick="logout()">Sign out</a>
+<!-- 	<a href="javascript:void(0)" onclick="logout()">Sign out</a> -->
 <!-- 		<div style="float:left;width:100px;" id="sliderId"></div> -->
 <!-- 		<div style="float:left;margin-left:20px;width:20px;" id="sliderValueId"></div> -->
 		
@@ -115,7 +116,6 @@ try{
 		});
   })
     </script>
-	<%}%>
   </body>
 </html>
 
